@@ -222,7 +222,7 @@ pub fn get_issue() -> Option<String> {
             } else if name == "reverse" {
               pretty_issue.push('7');
             } else if name == "yellow" {
-              pretty_issue.push_str("33");
+              pretty_issue.push_str("1;33");
             } else if name == "white" {
               pretty_issue.push_str("1;37");
             }
