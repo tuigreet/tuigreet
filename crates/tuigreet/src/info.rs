@@ -97,9 +97,9 @@ pub fn get_issue() -> Option<String> {
     })
 
   let user_string = match user_count {
-      n if n == 1 => format!("{n} user"),
-      n => format!("{n} users"),
-    };
+    n if n == 1 => format!("{n} user"),
+    n => format!("{n} users"),
+  };
 
   let uts = utsname::uname();
   let vtnr: usize = env::var("XDG_VTNR")
