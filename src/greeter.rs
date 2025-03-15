@@ -658,7 +658,7 @@ impl Greeter {
   }
 }
 
-fn print_usage(opts: Options) {
+pub fn print_usage(opts: Options) {
   eprint!("{}", opts.usage("Usage: tuigreet [OPTIONS]"));
 }
 
