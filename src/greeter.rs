@@ -497,6 +497,13 @@ impl Greeter {
       process::exit(0);
     }
 
+    // If --show-all-sessions is specified, output the sessions template and exit
+    // This is similar to how --help and --version work - show information and exit
+    if self.config().opt_present("show-all-sessions") {
+      show_all_sessions()?;
+      process::exit(0);
+    }
+
     if self.config().opt_present("debug") {
       self.debug = true;
 
@@ -622,12 +629,6 @@ impl Greeter {
     });
 
     self.power_setsid = !self.config().opt_present("power-no-setsid");
-    // If --show-all-sessions is specified, output the sessions template and exit
-    // This is similar to how --help and --version work - show information and exit
-    if self.config().opt_present("show-all-sessions") {
-      show_all_sessions()?;
-      process::exit(0);
-    }
 
     self.kb_command = self.config().opt_str("kb-command").map(|i| i.parse::<u8>().unwrap_or_default()).unwrap_or(2);
     self.kb_sessions = self.config().opt_str("kb-sessions").map(|i| i.parse::<u8>().unwrap_or_default()).unwrap_or(3);
