@@ -7,6 +7,9 @@ use crate::Greeter;
 
 use super::common::menu::MenuItem;
 
+use std::error::Error;
+use ini::Ini;
+
 // SessionSource models the selected session and where it comes from.
 //
 // A session can either come from a free-form command or an XDG-defined session
@@ -100,6 +103,16 @@ pub struct Session {
   pub xdg_desktop_names: Option<String>,
 }
 
+// Represents a session configuration entry from the TOML config file
+// Used to customize which sessions appear in the F3 menu and their order
+#[derive(Default, Debug, Clone)]
+pub struct SessionConfig {
+  pub name: String,
+  pub path: PathBuf,
+  pub enabled: bool,
+  pub order: i32,
+}
+
 impl MenuItem for Session {
   fn format(&self) -> Cow<'_, str> {
     Cow::Borrowed(&self.name)
@@ -127,6 +140,54 @@ impl Session {
       SessionSource::Session(index) => greeter.sessions.options.get(index),
       _ => None,
     }
+  }
+
+  // Creates a new Session object from a desktop file path with a custom name.
+  //
+  // This allows loading sessions from config files where the name might be
+  // customized by the system administrator.
+  //
+  // Arguments:
+  // * `path` - Path to the desktop entry file
+  // * `name` - Custom name to use for the session (overrides the Name in the desktop file)
+  //
+  // Returns:
+  // * `Ok(Some(Session))` if the file exists and is a valid desktop entry
+  // * `Ok(None)` if the file doesn't exist
+  // * `Err(...)` if there's an error parsing the desktop file
+  pub fn from_path_with_name<P>(path: P, name: String) -> Result<Option<Session>, Box<dyn Error>> 
+  where
+    P: AsRef<Path>,
+  {
+    let path_ref = path.as_ref();
+    if !path_ref.exists() {
+        return Ok(None);
+    }
+
+    let desktop = Ini::load_from_file(path_ref)?;
+    let section = desktop.section(Some("Desktop Entry")).ok_or("no Desktop Entry section in desktop file")?;
+    
+    let slug = path_ref.file_stem().map(|slug| slug.to_string_lossy().to_string());
+    let exec = section.get("Exec").ok_or("no Exec property in desktop file")?;
+    let xdg_desktop_names = section.get("DesktopNames").map(str::to_string);
+    
+    // Determine session type from file path
+    let session_type = if path_ref.to_string_lossy().contains("wayland-sessions") {
+        SessionType::Wayland
+    } else if path_ref.to_string_lossy().contains("xsessions") {
+        SessionType::X11
+    } else {
+        SessionType::None
+    };
+    
+    Ok(Some(Session {
+        slug,
+        name,
+        command: exec.to_string(),
+        session_type,
+        path: Some(path_ref.into()),
+        xdg_desktop_names,
+    }))
   }
 }
 

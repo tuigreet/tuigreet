@@ -36,6 +36,22 @@ use self::{event::Events, ipc::Ipc};
 
 #[tokio::main]
 async fn main() {
+  // Check for options that shouldn't require GREETD_SOCK
+  let args = std::env::args().collect::<Vec<String>>();
+  for arg in &args {
+    if arg == "--help" || arg == "-h" || arg == "--version" || arg == "-v" || arg == "--show-all-sessions" {
+      // Create a minimal Greeter just for parsing options
+      let mut greeter = Greeter::default();
+      if let Err(err) = greeter.parse_options(&args).await {
+        eprintln!("{err}");
+        print_usage(Greeter::options());
+        process::exit(1);
+      }
+      // We should never reach this point for these options
+      process::exit(0);
+    }
+  }
+
   let backend = CrosstermBackend::new(io::stdout());
   let events = Events::new().await;
   let greeter = Greeter::new(events.sender()).await;

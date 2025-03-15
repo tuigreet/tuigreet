@@ -30,6 +30,7 @@ tui = { package = "ratatui", version = "^0.27", default-features = false, featur
 rust-embed = "^8.0"
 rust-ini = "^0.21"
 smart-default = "^0.7"
+toml = "^0.7"
 tokio = { version = "^1.2", default-features = false, features = [
   "macros",
   "rt-multi-thread",
