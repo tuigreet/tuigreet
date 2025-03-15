@@ -23,6 +23,8 @@ use crate::{
   Greeter,
 };
 
+use crate::ui::sessions::SessionConfig;
+
 const LAST_USER_USERNAME: &str = "/var/cache/tuigreet/lastuser";
 const LAST_USER_NAME: &str = "/var/cache/tuigreet/lastuser-name";
 const LAST_COMMAND: &str = "/var/cache/tuigreet/lastsession";
@@ -250,28 +252,61 @@ pub fn get_min_max_uids(min_uid: Option<u16>, max_uid: Option<u16>) -> (u16, u16
   }
 }
 
-pub fn get_sessions(greeter: &Greeter) -> Result<Vec<Session>, Box<dyn Error>> {
-  let paths = if greeter.session_paths.is_empty() {
-    DEFAULT_SESSION_PATHS.as_ref()
-  } else {
-    &greeter.session_paths
-  };
-
-  let mut files = vec![];
-
-  for (path, session_type) in paths.iter() {
-    tracing::info!("reading {:?} sessions from '{}'", session_type, path.display());
-
-    if let Ok(entries) = fs::read_dir(path) {
-      files.extend(entries.flat_map(|entry| entry.map(|entry| load_desktop_file(entry.path(), *session_type))).flatten().flatten());
+// Loads and parses a session configuration file
+// The configuration defines which sessions to display and in what order
+// Returns a list of Session objects based on the configuration
+fn load_sessions_from_config<P: AsRef<Path>>(path: P) -> Result<Vec<Session>, Box<dyn Error>> {
+  use std::fs;
+  use toml::Value;
+  
+  // Read and parse the TOML file
+  let content = fs::read_to_string(path)?;
+  let config: Value = toml::from_str(&content)?;
+  
+  let mut session_configs = Vec::new();
+  
+  // Extract sessions from the TOML structure
+  if let Some(sessions) = config.get("sessions").and_then(|s| s.get("session")).and_then(|s| s.as_array()) {
+    for session_value in sessions {
+      let name = session_value.get("name").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+      let path_str = session_value.get("path").and_then(|v| v.as_str()).unwrap_or_default();
+      let enabled = session_value.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
+      let order = session_value.get("order").and_then(|v| v.as_integer()).unwrap_or(0);
+      
+      // Only include enabled sessions
+      if enabled {
+        session_configs.push(SessionConfig {
+          name,
+          path: PathBuf::from(path_str),
+          enabled,
+          order: order as i32,
+        });
+      }
     }
   }
+  
+  // Sort sessions by their specified order
+  session_configs.sort_by_key(|s| s.order);
+  
+  // Convert SessionConfig objects to Session objects
+  let mut sessions = Vec::new();
+  for config in session_configs {
+    if let Ok(Some(session)) = Session::from_path_with_name(&config.path, config.name) {
+      sessions.push(session);
+    }
+  }
+  
+  Ok(sessions)
+}
 
-  files.sort_by(|a, b| a.name.cmp(&b.name));
+pub fn get_sessions(greeter: &Greeter) -> Result<Vec<Session>, Box<dyn Error>> {
+  // If a session configuration file is specified, use it instead of auto-discovery
+  if let Some(config_path) = greeter.option("session-config") {
+    return load_sessions_from_config(config_path);
+  }
 
-  tracing::info!("found {} sessions", files.len());
-
-  Ok(files)
+  // Use the discover_sessions function for the actual session discovery
+  discover_sessions(greeter)
 }
 
 fn load_desktop_file<P>(path: P, session_type: SessionType) -> Result<Option<Session>, Box<dyn Error>>
@@ -332,4 +367,60 @@ mod nsswrapper_tests {
     assert_eq!(users[1].username, "bob");
     assert_eq!(users[1].name, None);
   }
+}
+
+// Function to generate a TOML configuration template with all available sessions
+// This allows administrators to customize which sessions are displayed and in what order
+pub fn show_all_sessions() -> Result<(), Box<dyn Error>> {
+  // Create a minimal greeter without connecting to greetd
+  let mut greeter = Greeter::default();
+  
+  // Initialize any needed fields
+  if greeter.config.is_none() {
+    greeter.config = Greeter::options().parse(&[""]).ok();
+  }
+  
+  // Get sessions directly from the filesystem
+  let sessions = discover_sessions(&greeter)?;
+  
+  println!("[sessions]");
+  println!("# Configuration for session display");
+  println!("# enabled = true|false - whether to display the session");
+  println!("# order = <number> - display order (lower numbers shown first)");
+  println!("");
+  
+  for (idx, session) in sessions.iter().enumerate() {
+    let name = session.name.replace("\"", "\\\"");
+    println!("[[sessions.session]]");
+    println!("name = \"{}\"", name);
+    if let Some(path) = &session.path {
+      println!("path = \"{}\"", path.display());
+    }
+    println!("enabled = true");
+    println!("order = {}", idx);
+    println!("");
+  }
+  
+  Ok(())
+}
+
+// Discovers available sessions from the filesystem
+pub fn discover_sessions(greeter: &Greeter) -> Result<Vec<Session>, Box<dyn Error>> {
+  let paths = if greeter.session_paths.is_empty() {
+    DEFAULT_SESSION_PATHS.as_ref()
+  } else {
+    &greeter.session_paths
+  };
+
+  let mut files = vec![];
+
+  for (path, session_type) in paths.iter() {
+    if let Ok(entries) = fs::read_dir(path) {
+      files.extend(entries.flat_map(|entry| entry.map(|entry| load_desktop_file(entry.path(), *session_type))).flatten().flatten());
+    }
+  }
+
+  files.sort_by(|a, b| a.name.cmp(&b.name));
+
+  Ok(files)
 }

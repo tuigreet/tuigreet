@@ -36,6 +36,16 @@ use self::{event::Events, ipc::Ipc};
 
 #[tokio::main]
 async fn main() {
+  // Check for --show-all-sessions first, before requiring GREETD_SOCK
+  let args = std::env::args().collect::<Vec<String>>();
+  if args.iter().any(|arg| arg == "--show-all-sessions") {
+    if let Err(error) = info::show_all_sessions() {
+      eprintln!("Error: {}", error);
+      std::process::exit(1);
+    }
+    return;
+  }
+
   let backend = CrosstermBackend::new(io::stdout());
   let events = Events::new().await;
   let greeter = Greeter::new(events.sender()).await;

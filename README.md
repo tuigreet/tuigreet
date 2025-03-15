@@ -67,6 +67,10 @@ Options:
                         F-key to use to open the sessions menu
         --kb-power [1-12]
                         F-key to use to open the power menu
+        --show-all-sessions
+                        output a config template with all available sessions
+        --session-config FILE
+                        path to a session configuration file
 ```
 
 ## Usage
@@ -200,6 +204,49 @@ Then refer to your wrapper script in a custom desktop file (in a directory decla
 ```
 Name=Wayland Gnome
 Exec=/path/to/my/wrapper.sh
+```
+
+#### Custom session configuration
+
+You can customize which sessions appear in the session menu (F3) and their order by using the `--session-config` option. This allows you to:
+
+- Rearrange sessions to display them in a custom order
+- Disable specific sessions that you don't want to appear
+- Provide a cleaner interface by showing only relevant sessions
+
+To get started, generate a template with all available sessions:
+
+```bash
+tuigreet --show-all-sessions > /etc/greetd/sessions.toml
+```
+
+This will create a TOML file with entries for each available session:
+
+```toml
+[[sessions.session]]
+name = "GNOME"
+path = "/usr/share/wayland-sessions/gnome.desktop"
+enabled = true
+order = 0
+
+[[sessions.session]]
+name = "KDE Plasma"
+path = "/usr/share/wayland-sessions/plasma.desktop"
+enabled = true
+order = 1
+```
+
+You can then edit this file to customize the session list:
+
+- set `enabled = false` to hide sessions you don't want to show
+- Change the `order` values to rearrange sessions (lower values appear first)
+
+To use your custom configuration, update your greetd config:
+
+```toml
+[default_session]
+command = "tuigreet --session-config /etc/greetd/sessions.toml"
+user = "greeter"
 ```
 
 #### Common wrappers

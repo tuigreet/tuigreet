@@ -34,6 +34,8 @@ use crate::{
   },
 };
 
+use crate::info::show_all_sessions;
+
 const DEFAULT_LOG_FILE: &str = "/tmp/tuigreet.log";
 const DEFAULT_LOCALE: Locale = Locale::en_US;
 const DEFAULT_ASTERISKS_CHARS: &str = "*";
@@ -468,6 +470,9 @@ impl Greeter {
     opts.optopt("", "kb-sessions", "F-key to use to open the sessions menu", "[1-12]");
     opts.optopt("", "kb-power", "F-key to use to open the power menu", "[1-12]");
 
+    opts.optflag("", "show-all-sessions", "output a config template with all available sessions");
+    opts.optopt("", "session-config", "path to a session configuration file", "FILE");
+
     opts
   }
 
@@ -617,6 +622,12 @@ impl Greeter {
     });
 
     self.power_setsid = !self.config().opt_present("power-no-setsid");
+    // If --show-all-sessions is specified, output the sessions template and exit
+    // This is similar to how --help and --version work - show information and exit
+    if self.config().opt_present("show-all-sessions") {
+      show_all_sessions()?;
+      process::exit(0);
+    }
 
     self.kb_command = self.config().opt_str("kb-command").map(|i| i.parse::<u8>().unwrap_or_default()).unwrap_or(2);
     self.kb_sessions = self.config().opt_str("kb-sessions").map(|i| i.parse::<u8>().unwrap_or_default()).unwrap_or(3);
