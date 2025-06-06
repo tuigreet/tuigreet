@@ -26,5 +26,5 @@ command_exited = 命令退出时显示
 command_failed = 命令执行失败
 
 status_command = CMD
-status_session = 
+status_session = 会话
 status_caps = 大写锁定
