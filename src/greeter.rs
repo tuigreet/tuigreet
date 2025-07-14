@@ -544,8 +544,8 @@ impl Greeter {
 
       tracing::info!("min/max UIDs are {}/{}", min_uid, max_uid);
 
-      if min_uid >= max_uid {
-        return Err("Minimum UID ({min_uid}) must be less than maximum UID ({max_uid})".into());
+      if min_uid > max_uid {
+        return Err("Minimum UID ({min_uid}) must be less than or equal to maximum UID ({max_uid})".into());
       }
 
       self.users = Menu {
