@@ -18,6 +18,8 @@ new_command = Ordre nova:
 
 shutdown = Atura
 reboot = Reinicia
+suspend = Suspendre
+hibernate = Hibernar
 
 status_command = CMD
 status_caps = BLOQ MAJ

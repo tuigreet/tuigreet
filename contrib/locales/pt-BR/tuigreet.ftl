@@ -17,6 +17,8 @@ new_command = Novo comando:
 
 shutdown = Desligar
 reboot = Reiniciar
+suspend = Suspender
+hibernate = Hibernar
 
 status_command = CMD
 status_caps = CAPS LOCK

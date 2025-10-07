@@ -20,6 +20,8 @@ new_command = New command:
 
 shutdown = Shut down
 reboot = Reboot
+suspend = Suspend
+hibernate = Hibernate
 
 command_missing = No command configured
 command_exited = Command exited with

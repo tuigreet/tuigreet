@@ -18,6 +18,8 @@ new_command = Nuovo comando:
 
 shutdown = Spegni
 reboot = Riavvia
+suspend = Sospendi
+hibernate = Ibernare
 
 status_command = CMD
 status_caps = BLC MAIUSC

@@ -20,6 +20,8 @@ command = Nouvelle commande :
 
 shutdown = Éteindre
 reboot = Redémarrer
+suspend = Mettre en veille
+hibernate = Hiberner
 
 command_missing = Aucune commande configurée
 command_exited = La commande a retourné

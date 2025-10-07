@@ -20,6 +20,8 @@ new_command = Nuevo comando:
 
 shutdown = Apagar
 reboot = Reiniciar
+suspend = Suspender
+hibernate = Hibernar
 
 command_exited = El comando terminó con
 command_failed = El comando falló

@@ -21,6 +21,8 @@ new_command = Nowe polecenie:
 
 shutdown = Wyłącz
 reboot = Uruchom ponownie
+suspend = Wstrzymanie
+hibernate = Hibernacja
 
 command_exited = Polecenie zakończone z kodem
 command_failed = Polecenie zakończone niepowodzeniem
