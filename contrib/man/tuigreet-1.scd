@@ -120,6 +120,14 @@ tuigreet - A graphical console greeter for greetd
 	Customize the command run when instructed to reboot the machine. This must be
 	a non-interactive command (sudo cannot prompt for a password, for example).
 
+*--power-suspend CMD [ARGS]...*
+	Customize the command run when instructed to suspend the machine. This must be
+	a non-interactive command (sudo cannot prompt for a password, for example).
+
+*--power-hibernate CMD [ARGS]...*
+	Customize the command run when instructed to hibernate the machine. This must be
+	a non-interactive command (sudo cannot prompt for a password, for example).
+
 *--power-no-setsid*
 	Do not prefix power commands with *setsid*, which is used to detach it from
 	current TTY.
