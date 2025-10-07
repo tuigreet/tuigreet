@@ -9,6 +9,8 @@ pub enum PowerOption {
   #[default]
   Shutdown,
   Reboot,
+  Suspend,
+  Hibernate,
 }
 
 pub async fn power(greeter: &mut Greeter, option: PowerOption) {
@@ -36,16 +38,28 @@ pub async fn power(greeter: &mut Greeter, option: PowerOption) {
     }
 
     Some(_) => {
-      let mut command = Command::new("shutdown");
-
       match option {
-        PowerOption::Shutdown => command.arg("-h"),
-        PowerOption::Reboot => command.arg("-r"),
-      };
-
-      command.arg("now");
-
-      Some(command)
+        PowerOption::Shutdown => {
+          let mut command = Command::new("shutdown");
+          command.arg("-h").arg("now");
+          Some(command)
+        }
+        PowerOption::Reboot => {
+          let mut command = Command::new("shutdown");
+          command.arg("-r").arg("now");
+          Some(command)
+        }
+        PowerOption::Suspend => {
+          let mut command = Command::new("systemctl");
+          command.arg("suspend");
+          Some(command)
+        }
+        PowerOption::Hibernate => {
+          let mut command = Command::new("systemctl");
+          command.arg("hibernate");
+          Some(command)
+        }
+      }
     }
   };
 
