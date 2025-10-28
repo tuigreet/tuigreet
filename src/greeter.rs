@@ -186,6 +186,8 @@ pub struct Greeter {
   pub done: bool,
   // Should we exit?
   pub exit: Option<AuthStatus>,
+  // Should we silence command output?
+  pub silent: bool,
 }
 
 impl Drop for Greeter {
@@ -430,6 +432,7 @@ impl Greeter {
     opts.optflag("v", "version", "print version information");
     opts.optflagopt("d", "debug", "enable debug logging to the provided file, or to /tmp/tuigreet.log", "FILE");
     opts.optopt("c", "cmd", "command to run", "COMMAND");
+    opts.optflag("", "silent", "silence command output");
     opts.optmulti("", "env", "environment variables to run the default session with (can appear more than once)", "KEY=VALUE");
     opts.optopt("s", "sessions", "colon-separated list of Wayland session paths", "DIRS");
     opts.optopt("", "session-wrapper", "wrapper command to initialize the non-X11 session", "'CMD [ARGS]...'");
@@ -482,6 +485,8 @@ impl Greeter {
       Ok(matches) => Some(matches),
       Err(err) => return Err(err.into()),
     };
+
+    self.silent = self.config().opt_present("silent");
 
     if self.config().opt_present("help") {
       print_usage(opts);
