@@ -161,6 +161,8 @@ pub struct Greeter {
   pub theme: Theme,
   // Display the current time
   pub time: bool,
+  // Display the current battery level
+  pub battery: bool,
   // Time format
   pub time_format: Option<String>,
   // Greeting message (MOTD) to use to welcome the user.
@@ -440,6 +442,7 @@ impl Greeter {
     opts.optflag("i", "issue", "show the host's issue file");
     opts.optopt("g", "greeting", "show custom text above login prompt", "GREETING");
     opts.optflag("t", "time", "display the current date and time");
+    opts.optflag("b", "battery", "display the current battery level");
     opts.optopt("", "time-format", "custom strftime format for displaying date and time", "FORMAT");
     opts.optflag("r", "remember", "remember last logged-in username");
     opts.optflag("", "remember-session", "remember last selected session");
@@ -526,6 +529,7 @@ impl Greeter {
     }
 
     self.time = self.config().opt_present("time");
+    self.battery = self.config().opt_present("battery");
 
     if let Some(format) = self.config().opt_str("time-format") {
       if StrftimeItems::new(&format).any(|item| item == Item::Error) {

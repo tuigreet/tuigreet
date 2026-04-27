@@ -8,6 +8,7 @@ action_command = Mudar comando
 action_session = Escolher sessão
 action_power = Energia
 
+battery = Bateria: { $level }%
 date = %a, %d %h %Y - %H:%M
 
 username = Nome de usuário:

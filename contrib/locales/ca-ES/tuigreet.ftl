@@ -8,6 +8,7 @@ action_command = Canvia l'ordre
 action_session = Tria una sessió
 action_power = Engegada
 
+battery = Bateria: { $level }%
 date = %a %d %h %Y - %H:%M
 
 username = Nom d'usuari:

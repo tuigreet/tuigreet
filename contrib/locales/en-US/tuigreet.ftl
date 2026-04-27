@@ -9,6 +9,7 @@ action_command = Change command
 action_session = Choose session
 action_power = Power
 
+battery = Battery: { $level }%
 date = %a, %d %h %Y - %H:%M
 
 select_user = Press Enter to select a user or start typing...

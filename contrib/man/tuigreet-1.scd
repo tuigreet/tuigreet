@@ -63,6 +63,9 @@ tuigreet - A graphical console greeter for greetd
 *-t, --time*
 	Print the current date and time at the top of the screen.
 
+*-b, --battery*
+	Print current battery level at the top of the screen.
+
 *--time-format FORMAT*
 	Configure a custom strftime-compliant format string for the current date
 	and time.

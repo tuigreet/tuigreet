@@ -9,6 +9,7 @@ action_command = Cambiar comando
 action_session = Escoger sesión
 action_power = Energía
 
+battery = Batería: { $level }%
 date = %a, %d %h %Y - %H:%M
 
 select_user = Presiona Intro para seleccionar un usuario o comenzar a escribir...

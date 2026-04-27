@@ -70,11 +70,28 @@ where
       )
       .split(size);
 
-    if greeter.time {
-      let time_text = Span::from(get_time(&greeter));
-      let time = Paragraph::new(time_text).alignment(Alignment::Center).style(theme.of(&[Themed::Time]));
+    let mut top_bar_text = String::new();
 
-      f.render_widget(time, chunks[TITLEBAR_INDEX]);
+    if greeter.time {
+      top_bar_text.push_str(&get_time(&greeter));
+    }
+
+    if greeter.battery {
+      if let Some(level) = crate::info::get_battery_status() {
+        let battery_text = fl!("battery", level = level);
+
+        if !top_bar_text.is_empty() {
+          top_bar_text.push_str("   ");
+        }
+        top_bar_text.push_str(&battery_text);
+      }
+    }
+
+    if !top_bar_text.is_empty() {
+      let text = Span::from(top_bar_text);
+      let paragraph = Paragraph::new(text).alignment(Alignment::Center).style(theme.of(&[Themed::Time]));
+
+      f.render_widget(paragraph, chunks[TITLEBAR_INDEX]);
     }
 
     let status_block_size_right = 1 + greeter.window_padding() + fl!("status_caps").chars().count() as u16;

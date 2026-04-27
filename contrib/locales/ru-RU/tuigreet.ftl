@@ -9,6 +9,7 @@ action_command = Изменить команду
 action_session = Выбрать сеанс
 action_power = Питание
 
+battery = Baterie: { $level }%
 date = %a, %d %h %Y - %H:%M
 
 select_user = Нажмите Enter для выбора пользователя или начните печатать...

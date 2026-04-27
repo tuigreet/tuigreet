@@ -317,6 +317,24 @@ pub fn capslock_status() -> bool {
   }
 }
 
+pub fn get_battery_status() -> Option<String> {
+  if let Ok(entries) = fs::read_dir("/sys/class/power_supply/") {
+    for entry in entries.flatten() {
+      if let Some(name) = entry.file_name().to_str() {
+        if name.starts_with("BAT") {
+          let capacity_path = entry.path().join("capacity");
+
+          if let Ok(capacity) = fs::read_to_string(capacity_path) {
+            return Some(capacity.trim().to_string());
+          }
+        }
+      }
+    }
+  }
+
+  None
+}
+
 #[cfg(feature = "nsswrapper")]
 #[cfg(test)]
 mod nsswrapper_tests {
