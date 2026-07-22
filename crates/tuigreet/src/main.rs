@@ -96,20 +96,21 @@ where
       .await;
   }
 
-  if greeter.user_menu && greeter.users.options.len() == 1 {
-    if let Some(user) = greeter.users.options.first().cloned() {
-      tracing::info!("auto-selecting sole eligible user: {}", user.username);
+  if greeter.user_menu
+    && greeter.users.options.len() == 1
+    && let Some(user) = greeter.users.options.first().cloned()
+  {
+    tracing::info!("auto-selecting sole eligible user: {}", user.username);
 
-      greeter.username =
-        crate::ui::common::masked::MaskedString::from(user.username, user.name);
-      greeter.working = true;
+    greeter.username =
+      crate::ui::common::masked::MaskedString::from(user.username, user.name);
+    greeter.working = true;
 
-      ipc
-        .send(Request::CreateSession {
-          username: greeter.username.value.clone(),
-        })
-        .await;
-    }
+    ipc
+      .send(Request::CreateSession {
+        username: greeter.username.value.clone(),
+      })
+      .await;
   }
 
   let greeter = Arc::new(RwLock::new(greeter));

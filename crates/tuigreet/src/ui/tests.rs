@@ -858,7 +858,7 @@ async fn test_matrix_animation_renders_and_form_stays_legible() {
       .symbol()
       .chars()
       .next()
-      .map_or(false, |c| ('ｦ'..='ﾝ').contains(&c))
+      .is_some_and(|c| ('ｦ'..='ﾝ').contains(&c))
   });
   assert!(
     !katakana_in_form,

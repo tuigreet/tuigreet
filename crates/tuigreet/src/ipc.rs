@@ -456,13 +456,12 @@ mod test {
     greeter.xsession_wrapper = Some("startx".into());
 
     let session = Session {
-      slug: Some("thede".to_string()),
-      name: "Session1".into(),
-      session_type: SessionType::X11,
-      command: "Session1Cmd".into(),
-      path: Some(PathBuf::from("/Session1Path")),
+      slug:              Some("thede".to_string()),
+      name:              "Session1".into(),
+      session_type:      SessionType::X11,
+      command:           "Session1Cmd".into(),
+      path:              Some(PathBuf::from("/Session1Path")),
       xdg_desktop_names: Some("one;two;three;".to_string()),
-      ..Default::default()
     };
 
     let default = DefaultCommand(&session.command, None);
