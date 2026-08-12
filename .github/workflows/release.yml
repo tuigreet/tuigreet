@@ -43,7 +43,7 @@ jobs:
           fi
 
       - name: Checkout
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
 
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
