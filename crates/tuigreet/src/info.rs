@@ -85,16 +85,13 @@ pub fn get_issue() -> Option<String> {
     )
   };
 
-  let user_count =
-    UtmpParser::from_path("/var/run/utmp").map_or(0, |utmp| {
-      utmp.into_iter().fold(0, |acc, entry| {
-        match entry {
-          Ok(UtmpEntry::UserProcess { .. }) => acc + 1,
-          Ok(UtmpEntry::LoginProcess { .. }) => acc + 1,
-          _ => acc,
-        }
-      })
+  let user_count = UtmpParser::from_path("/var/run/utmp").map_or(0, |utmp| {
+    utmp.into_iter().fold(0, |acc, entry| match entry {
+      Ok(UtmpEntry::UserProcess { .. }) => acc + 1,
+      Ok(UtmpEntry::LoginProcess { .. }) => acc + 1,
+      _ => acc,
     })
+  });
 
   let user_string = match user_count {
     n if n == 1 => format!("{n} user"),
@@ -137,7 +134,12 @@ pub fn get_issue() -> Option<String> {
 
           for ifaddr in getifaddrs().unwrap() {
             if let Some(address) = ifaddr.address {
-              if address.family().unwrap_or(AddressFamily::Unspec) == (if special_char == '6' { AddressFamily::Inet6 } else { AddressFamily::Inet })
+              if address.family().unwrap_or(AddressFamily::Unspec)
+                == (if special_char == '6' {
+                  AddressFamily::Inet6
+                } else {
+                  AddressFamily::Inet
+                })
                 && ((interface.is_empty()
                   && !ifaddr.flags.contains(InterfaceFlags::IFF_LOOPBACK)
                   && ifaddr.flags.contains(InterfaceFlags::IFF_RUNNING)
@@ -158,7 +160,9 @@ pub fn get_issue() -> Option<String> {
             }
           }
         } else if special_char == 'b' {
-          if let Ok(dev_tty) = File::options().read(true).write(true).open("/dev/tty") {
+          if let Ok(dev_tty) =
+            File::options().read(true).write(true).open("/dev/tty")
+          {
             if let Ok(term) = termios::tcgetattr(dev_tty) {
               let baud = termios::cfgetispeed(&term);
               let mut baud_name = format!("{baud:?}");
@@ -255,8 +259,11 @@ pub fn get_issue() -> Option<String> {
 
             for line in os_release.lines() {
               if line.starts_with(&format!("{variable_name}=")) {
-                let mut variable_value = line.replace(&format!("{variable_name}="), "");
-                if variable_value.starts_with('"') && variable_value.ends_with('"') {
+                let mut variable_value =
+                  line.replace(&format!("{variable_name}="), "");
+                if variable_value.starts_with('"')
+                  && variable_value.ends_with('"')
+                {
                   variable_value = variable_value.replace('"', "");
                 }
 
@@ -269,7 +276,9 @@ pub fn get_issue() -> Option<String> {
             }
           } else {
             match uts {
-              Ok(uts) => pretty_issue.push_str(uts.machine().to_str().unwrap_or("")),
+              Ok(uts) => {
+                pretty_issue.push_str(uts.machine().to_str().unwrap_or(""))
+              },
               _ => pretty_issue.push_str("Linux"),
             }
           }
@@ -416,21 +425,19 @@ pub fn get_users(min_uid: u32, max_uid: u32) -> Vec<User> {
 
   users
     .filter(|user| user.uid() >= min_uid && user.uid() <= max_uid)
-    .map(|user| {
-      User {
-        username: user.name().to_string_lossy().to_string(),
-        name:     match user.gecos() {
-          name if name.is_empty() => None,
-          name => {
-            let name = name.to_string_lossy();
+    .map(|user| User {
+      username: user.name().to_string_lossy().to_string(),
+      name: match user.gecos() {
+        name if name.is_empty() => None,
+        name => {
+          let name = name.to_string_lossy();
 
-            match name.split_once(',') {
-              Some((name, _)) => Some(name.to_string()),
-              None => Some(name.to_string()),
-            }
-          },
+          match name.split_once(',') {
+            Some((name, _)) => Some(name.to_string()),
+            None => Some(name.to_string()),
+          }
         },
-      }
+      },
     })
     .collect()
 }
@@ -563,7 +570,7 @@ where
 
 pub struct BatteryInfo {
   pub percentage: u8,
-  pub charging:   bool,
+  pub charging: bool,
 }
 
 pub fn get_battery_info() -> Option<BatteryInfo> {
