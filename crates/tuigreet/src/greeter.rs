@@ -1574,13 +1574,10 @@ mod test {
     greeter.apply_config(&replacement);
 
     assert!(matches!(greeter.session_source, SessionSource::None));
-    assert_eq!(greeter.session_paths.len(), 2);
-    assert!(
-      greeter
-        .session_paths
-        .iter()
-        .any(|(path, _)| path == "/second")
-    );
+    assert_eq!(greeter.session_paths, [(
+      std::path::PathBuf::from("/second"),
+      SessionType::Wayland
+    )]);
     assert!(greeter.session_wrapper.is_none());
     assert!(!greeter.user_menu);
     assert!(greeter.users.options.is_empty());
@@ -1710,29 +1707,27 @@ mod test {
 
   #[tokio::test]
   async fn test_session_paths_are_deduplicated_after_config_overlay() {
+    let sess_dir = "/usr/share/wayland-sessions";
+
     let mut greeter = Greeter::default();
 
     assert!(
       greeter
-        .parse_options(&["--sessions", "/usr/share/wayland-sessions"])
+        .parse_options(&["--sessions", sess_dir])
         .await
         .is_ok()
     );
 
-    let config = Config::default();
+    // CLI options are merged into the configuration before it is applied, so
+    // the same directory can appear several times.
+    let mut config = Config::default();
+    config.session.sessions_dirs = vec![sess_dir.to_string(); 2];
     greeter.apply_config(&config);
 
-    assert_eq!(
-      greeter
-        .session_paths
-        .iter()
-        .filter(|(path, session_type)| {
-          path == &std::path::PathBuf::from("/usr/share/wayland-sessions")
-            && session_type == &SessionType::Wayland
-        })
-        .count(),
-      1
-    );
+    assert_eq!(greeter.session_paths, [(
+      std::path::PathBuf::from(sess_dir),
+      SessionType::Wayland
+    )]);
   }
 
   #[tokio::test]

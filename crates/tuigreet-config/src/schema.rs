@@ -166,11 +166,11 @@ pub struct SessionConfig {
   pub command: Option<String>,
 
   /// Directories containing Wayland session files
-  #[serde(default = "default_sessions_dirs")]
+  #[serde(default)]
   pub sessions_dirs: Vec<String>,
 
   /// Directories containing X11 session files
-  #[serde(default = "default_xsessions_dirs")]
+  #[serde(default)]
   pub xsessions_dirs: Vec<String>,
 
   /// Wrapper command for non-X11 sessions
@@ -190,8 +190,8 @@ impl Default for SessionConfig {
   fn default() -> Self {
     Self {
       command:          None,
-      sessions_dirs:    default_sessions_dirs(),
-      xsessions_dirs:   default_xsessions_dirs(),
+      sessions_dirs:    vec![],
+      xsessions_dirs:   vec![],
       session_wrapper:  None,
       xsession_wrapper: default_xsession_wrapper(),
       environments:     Vec::new(),
@@ -649,14 +649,6 @@ const fn default_show_title() -> bool {
 
 fn default_log_file() -> String {
   "/tmp/tuigreet.log".to_string()
-}
-
-fn default_sessions_dirs() -> Vec<String> {
-  vec!["/usr/share/wayland-sessions".to_string()]
-}
-
-fn default_xsessions_dirs() -> Vec<String> {
-  vec!["/usr/share/xsessions".to_string()]
 }
 
 fn default_xsession_wrapper() -> Option<String> {
