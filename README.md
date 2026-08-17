@@ -490,11 +490,14 @@ rows = 52
 
 ### Sessions
 
-The available sessions are fetched from `desktop` files in
-`/usr/share/xsessions` and `/usr/share/wayland-sessions`. If you want to provide
-custom directories, you can set the `--sessions` arguments with a
-colon-separated list of directories for `tuigreet` to fetch session definitions
-some other place.
+The available sessions are discovered by iterating over all paths present in the
+`$XDG_DATA_DIR` environmental variable, then looking for `.desktop` files in
+`xsessions/` and `wayland-sessions/` subdirectories. If you want to search for
+sessions in custom directories, you can set the `--sessions` arguments with a
+colon-separated list of directories.
+
+On most Linux distributions, `.desktop` files are stored in the `/usr/share/xsessions`
+and `/usr/share/wayland-sessions` directories respectively.
 
 #### Desktop environments
 
@@ -527,16 +530,14 @@ Exec=/path/to/my/wrapper.sh
 
 #### Common wrappers
 
-Two options allows you to automatically wrap run commands around sessions
-started from desktop files, depending on whether they come
-`/usr/share/wayland-sessions` or `/usr/share/xsessions`: `--sessions-wrapper`
-and `--xsessions-wrapper`. With this, you can prepend another command on front
-of the sessions you run to set up the required environment to run these kinds of
-sessions.
+Two options allow you to automatically wrap run commands around sessions started
+from desktop files, depending on whether they come from `wayland-sessions/` or
+`xsessions/`: `--sessions-wrapper` and `--xsessions-wrapper`. With this, you can
+prepend another command in front of the sessions you run to set up the required
+environment to run these kinds of sessions.
 
-By default, unless you change it, all X11 sessions (those picked up from
-`/usr/share/xsessions`) are prepended with `startx /usr/bin/env`, so the X11
-server is started properly.
+By default, all X11 sessions (those picked up from `/xsessions`) are prepended
+with `startx /usr/bin/env`, so the X11 server is started properly.
 
 ### Power management
 

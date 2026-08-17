@@ -835,17 +835,6 @@ impl Config {
       );
     }
 
-    // Warn about empty session directories
-    if self.session.sessions_dirs.is_empty()
-      && self.session.xsessions_dirs.is_empty()
-    {
-      warnings.push(
-        "No session directories configured, users may not be able to select \
-         sessions"
-          .to_string(),
-      );
-    }
-
     // Warn about potentially invalid time formats
     if let Some(ref format) = self.display.time_format
       && format.is_empty()
