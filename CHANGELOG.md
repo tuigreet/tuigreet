@@ -37,3 +37,14 @@
 - Corrected the documented names of several configuration environment variables.
 - The top infobar now respects `layout.window_padding`.
 - Background animations no longer bleed into the login form.
+- Available sessions are discovered from `$XDG_DATA_DIRS` again. The default
+  configuration values for `sessions_dirs`/`xsessions_dirs` were causing the
+  discovery to be silently skipped.
+
+## 0.11.1
+
+### Fixed
+
+- Available sessions are discovered from `$XDG_DATA_DIRS` again. The default
+  configuration values for `sessions_dirs`/`xsessions_dirs` were causing the
+  discovery to be silently skipped. [backport]

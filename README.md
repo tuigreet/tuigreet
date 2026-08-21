@@ -478,7 +478,7 @@ rows = 52
 ### Sessions
 
 The available sessions are discovered by iterating over all paths present in the
-`$XDG_DATA_DIR` environmental variable, then looking for `.desktop` files in
+`$XDG_DATA_DIRS` environmental variable, then looking for `.desktop` files in
 `xsessions/` and `wayland-sessions/` subdirectories. If you want to search for
 sessions in custom directories, you can set the `--sessions` arguments with a
 colon-separated list of directories.
