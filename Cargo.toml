@@ -28,7 +28,7 @@ getopts = "0.2.24"
 greetd_ipc = { version = "0.10.3", features = [ "tokio-codec" ] }
 i18n-embed = { version = "0.16.0", features = [ "desktop-requester", "fluent-system" ] }
 i18n-embed-fl = "0.10.1"
-nix = { version = "0.31.3", features = [ "feature", "ioctl" ] }
+nix = { version = "0.31.3", features = [ "feature", "ioctl", "net", "term" ] }
 notify = { version = "8.2.0", features = [ "macos_fsevent" ] }
 rand = "0.10.2"
 rust-embed = "8.12.0"
