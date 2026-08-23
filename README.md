@@ -97,21 +97,21 @@ instructions. We will be happy to review :)
 
 ### From the AUR
 
-[AUR]: https://aur.archlinux.org/packages?O=0&K=tuigreet-fork
+[AUR]: https://aur.archlinux.org/packages?O=0&K=tuigreet
 
 On ArchLinux, two distributions are available from the [AUR].
-`greetd-tuigreet-fork-bin` is the precompiled binary for the latest tagged
-release, and `greetd-tuigreet-fork-git` is available for the same tagged
+`greetd-tuigreet-bin` is the precompiled binary for the latest tagged
+release, and `greetd-tuigreet-git` is available for the same tagged
 release, but you compile it yourself from the latest commit Those can be
 installed via your preferred AUR helper, e.g.:
 
 ```bash
 # Install the built binary from the AUR. This uses tuigreet's own releases.
-$ yay -S greetd-tuigreet-fork-bin
+$ yay -S greetd-tuigreet-bin
 
 # Alternatively, use the -git version to build from source. This depends on
 # the Rust toolchain.
-$ yay -S greetd-tuigreet-fork-git
+$ yay -S greetd-tuigreet-git
 ```
 
 ### With Nix
