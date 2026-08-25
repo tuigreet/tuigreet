@@ -6,6 +6,7 @@ use tokio::sync::RwLock;
 use tuigreet_types::Mode;
 
 use crate::{
+  Event,
   Greeter,
   info::{
     delete_last_command,
@@ -96,6 +97,9 @@ pub async fn handle(
         _ => {
           Ipc::cancel(&mut greeter).await;
           greeter.reset(false).await;
+          if let Some(ref sender) = greeter.events {
+            let _ = sender.send(Event::ClearScreen).await;
+          }
         },
       }
     },

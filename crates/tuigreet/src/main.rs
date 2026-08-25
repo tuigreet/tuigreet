@@ -200,7 +200,11 @@ where
       },
 
       Some(Event::Refresh) => {
-        // Config was hot reloaded, force a render
+        ui::draw(greeter.clone(), &mut terminal).await?;
+      },
+
+      Some(Event::ClearScreen) => {
+        terminal.clear()?;
         ui::draw(greeter.clone(), &mut terminal).await?;
       },
 

@@ -38,6 +38,9 @@ pub enum Event {
   /// UI refresh
   Refresh,
 
+  /// Clear screen and refresh UI
+  ClearScreen,
+
   /// Update the render tick rate
   SetFrameRate(f64),
 }
