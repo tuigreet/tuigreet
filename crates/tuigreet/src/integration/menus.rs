@@ -276,9 +276,11 @@ async fn users_menu() {
       assert!(runner.output().await.contains("Password:"));
 
       runner.send_key(KeyCode::Esc).await;
+      runner.wait_for_render().await;
       runner.send_key(KeyCode::Enter).await;
       runner.send_key(KeyCode::Up).await;
       runner.send_key(KeyCode::Enter).await;
+      runner.wait_for_render().await;
       runner.wait_for_render().await;
 
       assert!(runner.output().await.contains("Username: Antoine POPINEAU"));

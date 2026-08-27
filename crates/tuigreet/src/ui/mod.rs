@@ -81,6 +81,23 @@ where
   let mut greeter = greeter.write().await;
   let hide_cursor = should_hide_cursor(&greeter);
 
+  if greeter.needs_clear {
+    greeter.needs_clear = false;
+    terminal.draw(|f| {
+      let area = f.area();
+      let buf = f.buffer_mut();
+      for y in area.top()..area.bottom() {
+        for x in area.left()..area.right() {
+          if let Some(cell) = buf.cell_mut((x, y)) {
+            cell.set_char('█');
+            cell.set_fg(tui::style::Color::DarkGray);
+          }
+        }
+      }
+    })?;
+    return Ok(());
+  }
+
   terminal.draw(|f| {
     let area = f.area();
     if let Some(anim) = greeter.animation.as_mut() {
