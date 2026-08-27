@@ -36,7 +36,9 @@ async fn remember_username() -> io::Result<()> {
 
       runner.wait_until_buffer_contains("Password:").await?;
       runner.send_key(KeyCode::Esc).await?;
-      runner.wait_for_render().await?;
+      runner
+        .wait_until_buffer_contains("Username:       ")
+        .await?;
 
       assert!(runner.output().await?.contains("Username:       "));
       assert!(!runner.output().await?.contains("Password:"));
