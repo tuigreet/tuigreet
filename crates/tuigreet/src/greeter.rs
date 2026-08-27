@@ -174,6 +174,11 @@ pub struct Greeter {
   pub done:    bool,
   // Should we exit?
   pub exit:    Option<AuthStatus>,
+
+  // When true, the next render frame will display a Clear widget to force
+  // redraw of the terminal (useful after external TTY writes pollute the
+  // screen, e.g. from systemd boot logs).
+  pub needs_clear: bool,
 }
 
 impl Default for Greeter {
@@ -236,6 +241,7 @@ impl Default for Greeter {
       working:                    false,
       done:                       false,
       exit:                       None,
+      needs_clear:                false,
     }
   }
 }
