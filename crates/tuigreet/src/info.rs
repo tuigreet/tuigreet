@@ -142,42 +142,40 @@ pub fn get_issue() -> Option<String> {
           }
 
           for ifaddr in getifaddrs().into_iter().flatten() {
-            if let Some(address) = ifaddr.address {
-              if address.family().unwrap_or(AddressFamily::Unspec)
+            if let Some(address) = ifaddr.address
+              && address.family().unwrap_or(AddressFamily::Unspec)
                 == (if special_char == '6' {
                   AddressFamily::Inet6
                 } else {
                   AddressFamily::Inet
                 })
-                && ((interface.is_empty()
-                  && !ifaddr.flags.contains(InterfaceFlags::IFF_LOOPBACK)
-                  && ifaddr.flags.contains(InterfaceFlags::IFF_RUNNING)
-                  && ifaddr.flags.contains(InterfaceFlags::IFF_UP))
-                  || ifaddr.interface_name == *interface)
-              {
-                if special_char == '6' {
-                  if let Some(ipv6) = address.as_sockaddr_in6() {
-                    pretty_issue.push_str(&ipv6.ip().to_string());
-                  }
-                } else {
-                  if let Some(ipv4) = address.as_sockaddr_in() {
-                    pretty_issue.push_str(&ipv4.ip().to_string());
-                  }
+              && ((interface.is_empty()
+                && !ifaddr.flags.contains(InterfaceFlags::IFF_LOOPBACK)
+                && ifaddr.flags.contains(InterfaceFlags::IFF_RUNNING)
+                && ifaddr.flags.contains(InterfaceFlags::IFF_UP))
+                || ifaddr.interface_name == *interface)
+            {
+              if special_char == '6' {
+                if let Some(ipv6) = address.as_sockaddr_in6() {
+                  pretty_issue.push_str(&ipv6.ip().to_string());
                 }
-                break;
+              } else {
+                if let Some(ipv4) = address.as_sockaddr_in() {
+                  pretty_issue.push_str(&ipv4.ip().to_string());
+                }
               }
+              break;
             }
           }
         } else if special_char == 'b' {
           if let Ok(dev_tty) =
             File::options().read(true).write(true).open("/dev/tty")
+            && let Ok(term) = termios::tcgetattr(dev_tty)
           {
-            if let Ok(term) = termios::tcgetattr(dev_tty) {
-              let baud = termios::cfgetispeed(&term);
-              let mut baud_name = format!("{baud:?}");
-              baud_name.remove(0);
-              pretty_issue.push_str(&baud_name);
-            }
+            let baud = termios::cfgetispeed(&term);
+            let mut baud_name = format!("{baud:?}");
+            baud_name.remove(0);
+            pretty_issue.push_str(&baud_name);
           }
         } else if special_char == 'd' {
           pretty_issue.push_str(&date);
