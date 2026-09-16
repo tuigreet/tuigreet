@@ -124,7 +124,7 @@ pub fn get_issue() -> Option<String> {
             iter.next(); // 4 -> {
 
             interface = iter.next().unwrap_or('}').to_string();
-            while iter.peek() != Some(&'}') {
+            while let Some(inter) = iter.peek() && inter != &'}' {
               interface.push(iter.next().unwrap_or('}'));
             }
             iter.next(); // } ->
@@ -178,7 +178,8 @@ pub fn get_issue() -> Option<String> {
             iter.next(); // e -> {
 
             let mut name = iter.next().unwrap_or('}').to_string();
-            while iter.peek() != Some(&'}') {
+
+            while let Some(n) = iter.peek() && n != &'}' {
               name.push(iter.next().unwrap_or('}'));
             }
             iter.next(); // } ->
@@ -249,7 +250,7 @@ pub fn get_issue() -> Option<String> {
               iter.next(); // S -> {
 
               variable_name = iter.next().unwrap_or('}').to_string();
-              while iter.peek() != Some(&'}') {
+              while let Some(var) = iter.peek() && var != &'}' {
                 variable_name.push(iter.next().unwrap_or('}'));
               }
               iter.next(); // } ->
