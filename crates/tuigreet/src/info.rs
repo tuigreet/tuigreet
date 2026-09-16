@@ -70,10 +70,8 @@ fn default_session_paths() -> &'static Vec<(PathBuf, SessionType)> {
 
 fn get_sysname() -> String {
   match utsname::uname() {
-    Ok(uts) => {
-      uts.sysname().to_str().unwrap_or("Linux").to_string()
-    },
-    _ => "Linux".to_string()
+    Ok(uts) => uts.sysname().to_str().unwrap_or("Linux").to_string(),
+    _ => "Linux".to_string(),
   }
 }
 
@@ -133,7 +131,9 @@ pub fn get_issue() -> Option<String> {
             iter.next(); // 4 -> {
 
             interface = iter.next().unwrap_or('}').to_string();
-            while let Some(inter) = iter.peek() && inter != &'}' {
+            while let Some(inter) = iter.peek()
+              && inter != &'}'
+            {
               interface.push(iter.next().unwrap_or('}'));
             }
             iter.next(); // } ->
@@ -186,7 +186,9 @@ pub fn get_issue() -> Option<String> {
 
             let mut name = iter.next().unwrap_or('}').to_string();
 
-            while let Some(n) = iter.peek() && n != &'}' {
+            while let Some(n) = iter.peek()
+              && n != &'}'
+            {
               name.push(iter.next().unwrap_or('}'));
             }
             iter.next(); // } ->
@@ -256,7 +258,9 @@ pub fn get_issue() -> Option<String> {
               iter.next(); // S -> {
 
               variable_name = iter.next().unwrap_or('}').to_string();
-              while let Some(var) = iter.peek() && var != &'}' {
+              while let Some(var) = iter.peek()
+                && var != &'}'
+              {
                 variable_name.push(iter.next().unwrap_or('}'));
               }
               iter.next(); // } ->
