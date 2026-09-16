@@ -68,6 +68,15 @@ fn default_session_paths() -> &'static Vec<(PathBuf, SessionType)> {
   })
 }
 
+fn get_sysname() -> String {
+  match utsname::uname() {
+    Ok(uts) => {
+      uts.sysname().to_str().unwrap_or("Linux").to_string()
+    },
+    _ => "Linux".to_string()
+  }
+}
+
 pub fn get_hostname() -> String {
   match utsname::uname() {
     Ok(uts) => uts.nodename().to_str().unwrap_or("").to_string(),
@@ -235,9 +244,7 @@ pub fn get_issue() -> Option<String> {
             pretty_issue.push('m');
           }
         } else if special_char == 's' {
-          if let Ok(uts) = uts {
-            pretty_issue.push_str(uts.sysname().to_str().unwrap_or(""));
-          }
+          pretty_issue.push_str(&get_sysname());
         } else if special_char == 'S' {
           let mut os_release_path = "/etc/os-release";
           if !fs::exists(os_release_path).unwrap_or(false) {
@@ -246,6 +253,7 @@ pub fn get_issue() -> Option<String> {
 
           if let Ok(os_release) = fs::read_to_string(os_release_path) {
             let mut variable_name;
+            let mut variable_found = false;
             if iter.peek() == Some(&'{') {
               iter.next(); // S -> {
 
@@ -273,15 +281,17 @@ pub fn get_issue() -> Option<String> {
                 } else {
                   pretty_issue.push_str(&variable_value);
                 }
+
+                variable_found = true;
+                break;
               }
             }
-          } else {
-            match uts {
-              Ok(uts) => {
-                pretty_issue.push_str(uts.machine().to_str().unwrap_or(""))
-              },
-              _ => pretty_issue.push_str("Linux"),
+
+            if !variable_found {
+              pretty_issue.push_str(&get_sysname());
             }
+          } else {
+            pretty_issue.push_str(&get_sysname());
           }
         } else if special_char == 'l' {
           pretty_issue.push_str(&format!("tty{vtnr}"));
