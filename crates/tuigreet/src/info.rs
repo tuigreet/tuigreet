@@ -141,7 +141,7 @@ pub fn get_issue() -> Option<String> {
             interface = "".to_owned();
           }
 
-          for ifaddr in getifaddrs().unwrap() {
+          for ifaddr in getifaddrs().into_iter().flatten() {
             if let Some(address) = ifaddr.address {
               if address.family().unwrap_or(AddressFamily::Unspec)
                 == (if special_char == '6' {
