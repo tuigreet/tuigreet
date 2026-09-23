@@ -11,6 +11,10 @@
   overriding those actions.
 - When user-menu filtering leaves exactly one eligible user, tuigreet now
   selects that user and begins session creation automatically.
+- New `orbit` background animation: a procedurally generated planet and
+  orbiting satellite, periodically destroyed by a comet and regenerated.
+  Configured through `[background.orbit]` or the `--orbit-*` command-line
+  options.
 
 ### Changed
 

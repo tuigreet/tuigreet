@@ -820,6 +820,41 @@ async fn test_doom_animation_renders_and_form_stays_legible() {
 }
 
 #[tokio::test]
+async fn test_orbit_animation_renders_around_the_form() {
+  use crate::ui::bg_animation::{self as animation, AnimationSpec, orbit};
+
+  let greeter = test_greeter();
+  {
+    let mut g = greeter.write().await;
+    g.mode = Mode::Username;
+    // Park the planet above the form so it is not hidden behind it.
+    g.animation =
+      Some(animation::build(&AnimationSpec::Orbit(orbit::Options {
+        center_y: 0.1,
+        ..orbit::Options::default()
+      })));
+  }
+
+  let buffer = render_ui(greeter.clone(), 80, 24).await;
+  let planet = orbit::Options::default().planet;
+  let planet_cells = (0..80)
+    .flat_map(|x| (0..6).map(move |y: u16| (x, y)))
+    .filter(|&pos| buffer[pos].fg == planet && buffer[pos].symbol() != " ")
+    .count();
+  assert!(
+    planet_cells > 10,
+    "orbit should draw the planet above the form, got {planet_cells} cells"
+  );
+
+  let form_y = 12u16;
+  let planet_in_form = (20..60).any(|x| buffer[(x, form_y)].fg == planet);
+  assert!(
+    !planet_in_form,
+    "the planet must not bleed through the form"
+  );
+}
+
+#[tokio::test]
 async fn test_matrix_animation_renders_and_form_stays_legible() {
   use crate::ui::bg_animation::{self as animation, AnimationSpec, matrix};
 

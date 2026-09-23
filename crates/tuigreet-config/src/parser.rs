@@ -312,6 +312,35 @@ fn apply_config_layer(dest: &mut Config, src: Config) {
   if src.background.matrix.mutate_chance.is_some() {
     dest.background.matrix.mutate_chance = src.background.matrix.mutate_chance;
   }
+  if src.background.orbit.planet_color.is_some() {
+    dest.background.orbit.planet_color = src.background.orbit.planet_color;
+  }
+  if src.background.orbit.orbit_color.is_some() {
+    dest.background.orbit.orbit_color = src.background.orbit.orbit_color;
+  }
+  if src.background.orbit.satellite_color.is_some() {
+    dest.background.orbit.satellite_color =
+      src.background.orbit.satellite_color;
+  }
+  if src.background.orbit.impact_color.is_some() {
+    dest.background.orbit.impact_color = src.background.orbit.impact_color;
+  }
+  if src.background.orbit.speed.is_some() {
+    dest.background.orbit.speed = src.background.orbit.speed;
+  }
+  if src.background.orbit.scale.is_some() {
+    dest.background.orbit.scale = src.background.orbit.scale;
+  }
+  if src.background.orbit.center_x.is_some() {
+    dest.background.orbit.center_x = src.background.orbit.center_x;
+  }
+  if src.background.orbit.center_y.is_some() {
+    dest.background.orbit.center_y = src.background.orbit.center_y;
+  }
+  if src.background.orbit.impact_interval.is_some() {
+    dest.background.orbit.impact_interval =
+      src.background.orbit.impact_interval;
+  }
 
   // Outputs: a non-empty list from a higher-priority layer fully replaces
   if !src.outputs.is_empty() {
@@ -722,6 +751,39 @@ pub fn extract_cli_config(matches: &getopts::Matches) -> Config {
       config.background.matrix.max_speed = Some(hi);
     }
   }
+  if let Some(colors) = matches.opt_str("orbit-colors") {
+    let parts: Vec<&str> = colors.split(',').map(str::trim).collect();
+    if parts.len() == 4 {
+      config.background.orbit.planet_color = Some(parts[0].to_string());
+      config.background.orbit.orbit_color = Some(parts[1].to_string());
+      config.background.orbit.satellite_color = Some(parts[2].to_string());
+      config.background.orbit.impact_color = Some(parts[3].to_string());
+    }
+  }
+  if let Some(s) = matches.opt_str("orbit-speed")
+    && let Ok(v) = s.parse::<f32>()
+  {
+    config.background.orbit.speed = Some(v);
+  }
+  if let Some(s) = matches.opt_str("orbit-scale")
+    && let Ok(v) = s.parse::<f32>()
+  {
+    config.background.orbit.scale = Some(v);
+  }
+  if let Some(s) = matches.opt_str("orbit-position") {
+    let parts: Vec<&str> = s.split(',').map(str::trim).collect();
+    if parts.len() == 2
+      && let (Ok(x), Ok(y)) = (parts[0].parse::<f32>(), parts[1].parse::<f32>())
+    {
+      config.background.orbit.center_x = Some(x);
+      config.background.orbit.center_y = Some(y);
+    }
+  }
+  if let Some(s) = matches.opt_str("orbit-impact-interval")
+    && let Ok(v) = s.parse::<u32>()
+  {
+    config.background.orbit.impact_interval = Some(v);
+  }
   config
 }
 
@@ -982,7 +1044,6 @@ impl Config {
           .to_string(),
       );
     }
-
 
     // Warn about potentially invalid time formats
     if let Some(ref format) = self.display.time_format
@@ -1555,6 +1616,28 @@ session_wrapper = "   "
     apply_config_layer(&mut config, cli);
 
     assert_eq!(config.keybindings.sessions, 9);
+  }
+
+  #[test]
+  fn test_orbit_config_layers() {
+    let mut config: Config = toml::from_str(
+      "[background]\nkind = \"orbit\"\n[background.orbit]\nspeed = \
+       0.5\nimpact_interval = 0\nplanet_color = \"#112233\"\n",
+    )
+    .unwrap();
+    assert_eq!(config.background.orbit.speed, Some(0.5));
+
+    let mut cli = Config::default();
+    cli.background.orbit.scale = Some(1.5);
+    cli.background.orbit.impact_interval = Some(45);
+    apply_config_layer(&mut config, cli);
+
+    let orbit = &config.background.orbit;
+    assert_eq!(config.background.kind.as_deref(), Some("orbit"));
+    assert_eq!(orbit.planet_color.as_deref(), Some("#112233"));
+    assert_eq!(orbit.speed, Some(0.5), "lower layer survives");
+    assert_eq!(orbit.scale, Some(1.5));
+    assert_eq!(orbit.impact_interval, Some(45), "0 is overridden");
   }
 
   #[test]

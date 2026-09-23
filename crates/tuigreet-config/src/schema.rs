@@ -526,7 +526,7 @@ pub struct ThemeConfig {
 #[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq)]
 pub struct BackgroundConfig {
   /// Which animation to run. `None` or `"none"` disables animations.
-  /// Currently supported: `"doom"`, `"matrix"`.
+  /// Currently supported: `"doom"`, `"matrix"`, `"orbit"`.
   #[serde(default)]
   pub kind: Option<String>,
 
@@ -542,6 +542,10 @@ pub struct BackgroundConfig {
   /// Parameters for the cmatrix-style digital rain effect.
   #[serde(default)]
   pub matrix: MatrixConfig,
+
+  /// Parameters for the planet-and-satellite orbit scene.
+  #[serde(default)]
+  pub orbit: OrbitConfig,
 }
 
 /// Parameters for the DOOM-style fire animation. Field names mirror Ly's
@@ -606,6 +610,51 @@ pub struct MatrixConfig {
   /// shimmer). `0.0` disables.
   #[serde(default)]
   pub mutate_chance: Option<f32>,
+}
+
+/// Parameters for the planet-and-satellite orbit animation.
+#[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq)]
+pub struct OrbitConfig {
+  /// Color of the planet and its debris. Accepts `#RRGGBB`, `0xRRGGBB`, or
+  /// any color name accepted by ratatui.
+  #[serde(default)]
+  pub planet_color: Option<String>,
+
+  /// Color of the dotted orbit path.
+  #[serde(default)]
+  pub orbit_color: Option<String>,
+
+  /// Color of the satellite.
+  #[serde(default)]
+  pub satellite_color: Option<String>,
+
+  /// Color of the comet, blast, and sparks.
+  #[serde(default)]
+  pub impact_color: Option<String>,
+
+  /// Orbit and planet-spin speed multiplier (0.0..=10.0).
+  #[serde(default)]
+  pub speed: Option<f32>,
+
+  /// Scene size multiplier on top of the automatic fit to the terminal
+  /// (0.1..=5.0).
+  #[serde(default)]
+  pub scale: Option<f32>,
+
+  /// Horizontal position of the planet as a fraction of the screen width
+  /// (0.0..=1.0).
+  #[serde(default)]
+  pub center_x: Option<f32>,
+
+  /// Vertical position of the planet as a fraction of the screen height
+  /// (0.0..=1.0).
+  #[serde(default)]
+  pub center_y: Option<f32>,
+
+  /// Seconds between comet impacts that destroy the planet and replace it
+  /// with a new one. `0` disables impacts.
+  #[serde(default)]
+  pub impact_interval: Option<u32>,
 }
 
 /// Greeting alignment options

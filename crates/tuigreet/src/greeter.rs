@@ -826,7 +826,8 @@ impl Greeter {
     opts.optopt(
       "",
       "background",
-      "background animation to render behind the login UI ('doom' or 'none')",
+      "background animation to render behind the login UI ('doom', 'matrix', \
+       'orbit' or 'none')",
       "NAME",
     );
     opts.optopt(
@@ -877,6 +878,38 @@ impl Greeter {
       "matrix fall speed range as MIN,MAX in rows-per-frame (default: \
        0.30,1.10)",
       "MIN,MAX",
+    );
+    opts.optopt(
+      "",
+      "orbit-colors",
+      "orbit scene colors as PLANET,ORBIT,SATELLITE,IMPACT (each #RRGGBB or \
+       named)",
+      "PLANET,ORBIT,SATELLITE,IMPACT",
+    );
+    opts.optopt(
+      "",
+      "orbit-speed",
+      "orbit and planet spin speed multiplier (default: 1.0)",
+      "FACTOR",
+    );
+    opts.optopt(
+      "",
+      "orbit-scale",
+      "orbit scene size multiplier (default: 1.0)",
+      "FACTOR",
+    );
+    opts.optopt(
+      "",
+      "orbit-position",
+      "planet position as X,Y fractions of the screen (default: 0.5,0.5)",
+      "X,Y",
+    );
+    opts.optopt(
+      "",
+      "orbit-impact-interval",
+      "seconds between comet impacts that replace the planet, 0 to disable \
+       (default: 120)",
+      "SECS",
     );
 
     opts
@@ -1180,7 +1213,7 @@ impl Greeter {
     &mut self,
     cfg: &tuigreet_config::BackgroundConfig,
   ) {
-    use crate::ui::bg_animation::{Kind, doom, matrix};
+    use crate::ui::bg_animation::{Kind, doom, matrix, orbit};
 
     let Some(kind) = cfg.kind.as_deref().and_then(Kind::from_name) else {
       if let Some(name) = cfg.kind.as_deref()
@@ -1226,6 +1259,23 @@ impl Greeter {
           min_speed:     cfg.matrix.min_speed.unwrap_or(d.min_speed),
           max_speed:     cfg.matrix.max_speed.unwrap_or(d.max_speed),
           mutate_chance: cfg.matrix.mutate_chance.unwrap_or(d.mutate_chance),
+        })
+      },
+      Kind::Orbit => {
+        let d = orbit::Options::default();
+        AnimationSpec::Orbit(orbit::Options {
+          planet:          parse(&cfg.orbit.planet_color, d.planet),
+          orbit:           parse(&cfg.orbit.orbit_color, d.orbit),
+          satellite:       parse(&cfg.orbit.satellite_color, d.satellite),
+          impact:          parse(&cfg.orbit.impact_color, d.impact),
+          speed:           cfg.orbit.speed.unwrap_or(d.speed),
+          scale:           cfg.orbit.scale.unwrap_or(d.scale),
+          center_x:        cfg.orbit.center_x.unwrap_or(d.center_x),
+          center_y:        cfg.orbit.center_y.unwrap_or(d.center_y),
+          impact_interval: cfg
+            .orbit
+            .impact_interval
+            .unwrap_or(d.impact_interval),
         })
       },
     };
@@ -1766,6 +1816,39 @@ mod test {
               "XDG_SESSION_TYPE=wayland".to_string()
             ]
     ));
+  }
+
+  #[test]
+  fn test_orbit_cli_options_are_extracted() {
+    let matches = Greeter::options()
+      .parse([
+        "--background",
+        "orbit",
+        "--orbit-colors",
+        "red, #445566,white,0xFF8800",
+        "--orbit-speed",
+        "2.5",
+        "--orbit-scale",
+        "0.75",
+        "--orbit-position",
+        "0.8,0.3",
+        "--orbit-impact-interval",
+        "0",
+      ])
+      .unwrap();
+    let config = tuigreet_config::parser::extract_cli_config(&matches);
+    let orbit = &config.background.orbit;
+
+    assert_eq!(config.background.kind.as_deref(), Some("orbit"));
+    assert_eq!(orbit.planet_color.as_deref(), Some("red"));
+    assert_eq!(orbit.orbit_color.as_deref(), Some("#445566"));
+    assert_eq!(orbit.satellite_color.as_deref(), Some("white"));
+    assert_eq!(orbit.impact_color.as_deref(), Some("0xFF8800"));
+    assert_eq!(orbit.speed, Some(2.5));
+    assert_eq!(orbit.scale, Some(0.75));
+    assert_eq!(orbit.center_x, Some(0.8));
+    assert_eq!(orbit.center_y, Some(0.3));
+    assert_eq!(orbit.impact_interval, Some(0));
   }
 
   #[tokio::test]
