@@ -104,6 +104,7 @@ where
   }
 
   if greeter.user_menu
+    && !greeter.working
     && greeter.users.options.len() == 1
     && let Some(user) = greeter.users.options.first().cloned()
   {
