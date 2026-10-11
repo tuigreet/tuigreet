@@ -542,6 +542,10 @@ pub struct BackgroundConfig {
   /// Parameters for the cmatrix-style digital rain effect.
   #[serde(default)]
   pub matrix: MatrixConfig,
+
+  /// Parameters for the Conway's game of life background animation.
+  #[serde(default)]
+  pub conway: ConwayConfig,
 }
 
 /// Parameters for the DOOM-style fire animation. Field names mirror Ly's
@@ -606,6 +610,21 @@ pub struct MatrixConfig {
   /// shimmer). `0.0` disables.
   #[serde(default)]
   pub mutate_chance: Option<f32>,
+}
+
+/// Parameters for the Conway's game of life background animation.
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq)]
+pub struct ConwayConfig {
+  /// Chance for any given cell to be alive when the simulation (re-)starts, e.g.
+  /// `0.25` for 1/4 chance.
+  #[serde(default)]
+  pub alive_probability: Option<f64>,
+
+  /// Color used when a cell is alive. Accepts `#RRGGBB`, `0xRRGGBB`, or any
+  /// color name accepted by ratatui (e.g. `red`, `magenta`).
+  #[serde(default)]
+  pub alive_color: Option<String>,
 }
 
 /// Greeting alignment options

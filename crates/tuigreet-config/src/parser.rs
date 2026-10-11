@@ -312,6 +312,13 @@ fn apply_config_layer(dest: &mut Config, src: Config) {
   if src.background.matrix.mutate_chance.is_some() {
     dest.background.matrix.mutate_chance = src.background.matrix.mutate_chance;
   }
+  if src.background.conway.alive_color.is_some() {
+    dest.background.conway.alive_color = src.background.conway.alive_color;
+  }
+  if src.background.conway.alive_probability.is_some() {
+    dest.background.conway.alive_probability =
+      src.background.conway.alive_probability;
+  }
 
   // Outputs: a non-empty list from a higher-priority layer fully replaces
   if !src.outputs.is_empty() {
@@ -712,6 +719,7 @@ pub fn extract_cli_config(matches: &getopts::Matches) -> Config {
       config.background.matrix.max_length = Some(hi);
     }
   }
+
   if let Some(s) = matches.opt_str("matrix-speed") {
     let parts: Vec<&str> = s.split(',').map(str::trim).collect();
     if parts.len() == 2
@@ -722,6 +730,17 @@ pub fn extract_cli_config(matches: &getopts::Matches) -> Config {
       config.background.matrix.max_speed = Some(hi);
     }
   }
+
+  if let Some(s) = matches.opt_str("conway-alive-color") {
+    config.background.conway.alive_color = Some(s);
+  }
+
+  if let Ok(opt) = matches.opt_get::<f64>("conway-alive-probability")
+    && let Some(probability) = opt
+  {
+    config.background.conway.alive_probability = Some(probability);
+  }
+
   config
 }
 
@@ -982,7 +1001,6 @@ impl Config {
           .to_string(),
       );
     }
-
 
     // Warn about potentially invalid time formats
     if let Some(ref format) = self.display.time_format

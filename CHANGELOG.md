@@ -11,6 +11,7 @@
   overriding those actions.
 - When user-menu filtering leaves exactly one eligible user, tuigreet now
   selects that user and begins session creation automatically.
+- `conway` background animation: a Conway's game of life simulation as the animated background.
 
 ### Changed
 

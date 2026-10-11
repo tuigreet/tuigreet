@@ -865,3 +865,46 @@ async fn test_matrix_animation_renders_and_form_stays_legible() {
     "matrix glyphs must not bleed through the login form"
   );
 }
+
+#[tokio::test]
+async fn test_conway_animation_renders_and_form_stays_legible() {
+  use crate::ui::bg_animation::{self as animation, AnimationSpec, conway};
+
+  let greeter = test_greeter();
+  {
+    let mut g = greeter.write().await;
+    g.mode = Mode::Username;
+    g.animation = Some(animation::build(&AnimationSpec::Conway(
+      conway::Options::default(),
+    )));
+  }
+
+  // Render a frame
+  let buffer = render_ui(greeter.clone(), 80, 24).await;
+
+  // At least one painted cell anywhere outside the login form area
+  let painted_outside_form = (0..80).any(|x| {
+    (0..6).chain(18..24).any(|y: u16| {
+      let sym = buffer[(x, y)].symbol();
+      sym != " " && !sym.is_empty()
+    })
+  });
+  assert!(
+    painted_outside_form,
+    "conway should paint something outside the form area after 10 frames"
+  );
+
+  // No alive cell glyphs may bleed through the form
+  let form_y = 12u16;
+  let cells_in_form = (20..60).any(|x| {
+    buffer[(x, form_y)]
+      .symbol()
+      .chars()
+      .next()
+      .is_some_and(|c| c == '█')
+  });
+  assert!(
+    !cells_in_form,
+    "conway cells must not bleed through the login form"
+  );
+}

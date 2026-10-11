@@ -879,6 +879,21 @@ impl Greeter {
       "MIN,MAX",
     );
 
+    opts.optopt(
+      "",
+      "conway-alive-color",
+      "conway color of alive cells (default: white)",
+      "COLOR",
+    );
+
+    opts.optopt(
+      "",
+      "conway-alive-probability",
+      "chance for any given cell to be alive when the conway simulation \
+       (re-)starts (default: 0.25)",
+      "PROBABILITY",
+    );
+
     opts
   }
 
@@ -1180,7 +1195,7 @@ impl Greeter {
     &mut self,
     cfg: &tuigreet_config::BackgroundConfig,
   ) {
-    use crate::ui::bg_animation::{Kind, doom, matrix};
+    use crate::ui::bg_animation::{Kind, conway, doom, matrix};
 
     let Some(kind) = cfg.kind.as_deref().and_then(Kind::from_name) else {
       if let Some(name) = cfg.kind.as_deref()
@@ -1226,6 +1241,16 @@ impl Greeter {
           min_speed:     cfg.matrix.min_speed.unwrap_or(d.min_speed),
           max_speed:     cfg.matrix.max_speed.unwrap_or(d.max_speed),
           mutate_chance: cfg.matrix.mutate_chance.unwrap_or(d.mutate_chance),
+        })
+      },
+      Kind::Conway => {
+        let d = conway::Options::default();
+        AnimationSpec::Conway(conway::Options {
+          alive_probability: cfg
+            .conway
+            .alive_probability
+            .unwrap_or(d.alive_probability),
+          alive_color:       parse(&cfg.conway.alive_color, d.alive_color),
         })
       },
     };

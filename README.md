@@ -74,6 +74,7 @@ The following animation is available out of the box:
   `--matrix-length MIN,MAX` (rows, default `6,18`) and fall speed with
   `--matrix-speed MIN,MAX` (rows-per-frame, default `0.30,1.10`); the three
   color bands are set together with `--matrix-colors HEAD,BRIGHT,DIM`.
+- `conway` - A Conway's game of life simulation. You may want to decrease the background framerate from the default. Available options are `--conway-alive-color` (default `white`), determining the color of alive cells, and `--conway-alive-probability` (default `0.25`), determining the amount of alive cells in the starting state.
 
 You can also switch animations on the fly without restarting the greeter by
 hitting `F4`. This opens a small menu listing every available animation plus a
@@ -308,6 +309,10 @@ max_length = 18
 min_speed = 0.30     # rows per frame
 max_speed = 1.10
 mutate_chance = 0.02 # per-cell glyph shimmer probability
+
+[background.conway]
+alive_color = "white"
+alive_probability = 0.25
 
 [session]
 sessions_dirs = ["/usr/share/wayland-sessions", "/usr/share/xsessions"]

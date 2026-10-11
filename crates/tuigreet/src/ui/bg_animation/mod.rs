@@ -1,5 +1,6 @@
 //! Background animations rendered behind the login UI.
 
+pub mod conway;
 pub mod doom;
 pub mod matrix;
 
@@ -24,6 +25,7 @@ pub trait Animation: Send + Sync {
 pub enum Kind {
   Doom,
   Matrix,
+  Conway,
 }
 
 /// Catalog entry for a registered animation kind.
@@ -46,6 +48,11 @@ pub const KINDS: &[KindInfo] = &[
     name:  "matrix",
     label: "Matrix",
   },
+  KindInfo {
+    kind:  Kind::Conway,
+    name:  "conway",
+    label: "Conway",
+  },
 ];
 
 impl Kind {
@@ -54,6 +61,7 @@ impl Kind {
     match name.trim().to_ascii_lowercase().as_str() {
       "doom" | "fire" => Some(Self::Doom),
       "matrix" | "cmatrix" => Some(Self::Matrix),
+      "conway"  => Some(Self::Conway),
       _ => None,
     }
   }
@@ -64,6 +72,7 @@ impl Kind {
 pub enum AnimationSpec {
   Doom(doom::Options),
   Matrix(matrix::Options),
+  Conway(conway::Options),
 }
 
 /// Construct an animation matching `spec`'s variant.
@@ -71,6 +80,7 @@ pub fn build(spec: &AnimationSpec) -> Box<dyn Animation> {
   match spec {
     AnimationSpec::Doom(opts) => Box::new(doom::Doom::new(opts.clone())),
     AnimationSpec::Matrix(opts) => Box::new(matrix::Matrix::new(opts.clone())),
+    AnimationSpec::Conway(opts) => Box::new(conway::Conway::new(opts.clone())),
   }
 }
 
@@ -81,6 +91,7 @@ impl Kind {
     match self {
       Self::Doom => AnimationSpec::Doom(doom::Options::default()),
       Self::Matrix => AnimationSpec::Matrix(matrix::Options::default()),
+      Self::Conway => AnimationSpec::Conway(conway::Options::default()),
     }
   }
 }
@@ -140,5 +151,7 @@ mod tests {
     assert_eq!(Kind::from_name(""), None);
     assert_eq!(Kind::from_name("matrix"), Some(Kind::Matrix));
     assert_eq!(Kind::from_name("CMATRIX"), Some(Kind::Matrix));
+    assert_eq!(Kind::from_name("conway"), Some(Kind::Conway));
+    assert_eq!(Kind::from_name("CONWAY"), Some(Kind::Conway));
   }
 }
