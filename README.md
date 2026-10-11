@@ -379,6 +379,7 @@ export TUIGREET_XSESSIONS_DIRS="/usr/share/xsessions"
 export TUIGREET_SESSION_WRAPPER="systemd-cat -t sway"
 export TUIGREET_XSESSION_WRAPPER="startx"
 export TUIGREET_ENVIRONMENTS="WAYLAND_DISPLAY:DISPLAY"
+export TUIGREET_DEFAULT_SESSION="uwsm"
 
 # Power options
 export TUIGREET_POWER_USE_SETSID=false
@@ -485,6 +486,8 @@ colon-separated list of directories.
 
 On most Linux distributions, `.desktop` files are stored in the `/usr/share/xsessions`
 and `/usr/share/wayland-sessions` directories respectively.
+
+It is also possible to specify a regex for the default session using `--default-session`.
 
 #### Desktop environments
 

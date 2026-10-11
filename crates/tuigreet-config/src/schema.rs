@@ -184,6 +184,10 @@ pub struct SessionConfig {
   /// Environment variables for default session
   #[serde(default)]
   pub environments: Vec<String>,
+
+  /// Default session regex for the path name of a session
+  #[serde(default)]
+  pub default_session: Option<String>,
 }
 
 impl Default for SessionConfig {
@@ -195,6 +199,7 @@ impl Default for SessionConfig {
       session_wrapper:  None,
       xsession_wrapper: default_xsession_wrapper(),
       environments:     Vec::new(),
+      default_session:  None,
     }
   }
 }

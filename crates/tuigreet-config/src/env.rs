@@ -417,6 +417,10 @@ pub fn load_env_variables() -> Config {
       .collect();
   }
 
+  if let Ok(value) = env::var("TUIGREET_DEFAULT_SESSION") {
+    config.session.default_session = Some(value);
+  }
+
   // Widget positioning configuration
   if let Ok(value) = env::var("TUIGREET_TIME_POSITION") {
     match value.to_lowercase().as_str() {

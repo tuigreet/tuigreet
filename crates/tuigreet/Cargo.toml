@@ -43,6 +43,7 @@ tui                = { workspace = true }
 utmp-rs            = { workspace = true }
 uzers              = { workspace = true }
 zeroize            = { workspace = true }
+regex              = { workspace = true }
 
 [dev-dependencies]
 greetd-stub   = { workspace = true }

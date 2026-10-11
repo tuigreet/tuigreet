@@ -102,6 +102,8 @@ pub struct Greeter {
   pub session_wrapper:  Option<String>,
   // Wrapper command to prepend to X11 sessions.
   pub xsession_wrapper: Option<String>,
+  // Default session regex
+  pub default_session:  Option<String>,
 
   // Whether user menu is enabled.
   pub user_menu:    bool,
@@ -199,6 +201,7 @@ impl Default for Greeter {
       sessions:                   Menu::default(),
       session_wrapper:            None,
       xsession_wrapper:           None,
+      default_session:            None,
       user_menu:                  false,
       users:                      Menu::default(),
       default_user:               None,
@@ -349,6 +352,33 @@ impl Greeter {
       && !sessions.is_empty()
     {
       greeter.session_source = SessionSource::Session(0);
+
+      // Only set default session if no default command is provided
+      if let Some(ref default_session_str) = greeter.default_session {
+        match regex::Regex::new(default_session_str) {
+          Ok(regex) => {
+            if let Some(index) = greeter.sessions.options.iter().position(
+              |Session { path, .. }| {
+                path
+                  .as_ref()
+                  .map(|p| regex.is_match(&p.to_string_lossy()))
+                  .unwrap_or(false)
+              },
+            ) {
+              greeter.sessions.selected = index;
+              greeter.session_source =
+                SessionSource::Session(greeter.sessions.selected);
+            }
+          },
+          Err(err) => {
+            tracing::warn!(
+              "Invalid regex for default session: {}. Error: {}",
+              default_session_str,
+              err
+            );
+          },
+        }
+      }
     }
 
     greeter.sessions = Menu {
@@ -674,6 +704,12 @@ impl Greeter {
       "",
       "no-xsession-wrapper",
       "do not wrap commands for X11 sessions",
+    );
+    opts.optopt(
+      "",
+      "default-session",
+      "regex of path of default selected session",
+      "REGEX",
     );
     opts.optopt(
       "w",
@@ -1065,6 +1101,8 @@ impl Greeter {
         .or_else(|| Some(DEFAULT_XSESSION_WRAPPER.to_string()));
     }
 
+    self.default_session = self.option("default-session");
+
     if self.config().opt_present("issue") {
       self.greeting = get_issue();
     }
@@ -1344,6 +1382,7 @@ impl Greeter {
     if !self.config().opt_present("no-xsession-wrapper") {
       self.xsession_wrapper = config.session.xsession_wrapper.clone();
     }
+    self.default_session = config.session.default_session.clone();
     // Display
     self.time = config.display.show_time;
     self.time_format = config.display.time_format.clone();

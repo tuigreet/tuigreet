@@ -54,6 +54,7 @@ unic-langid = "0.9.6"
 utmp-rs = "0.4.0"
 uzers = "0.12.2"
 zeroize = "1.9.0"
+regex = "1.13.1"
 
 # Dev
 greetd-stub   = "0.3.0"

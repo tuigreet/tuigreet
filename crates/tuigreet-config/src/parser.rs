@@ -97,6 +97,9 @@ fn apply_config_layer(dest: &mut Config, src: Config) {
   if src.session.environments != defaults.session.environments {
     dest.session.environments = src.session.environments;
   }
+  if src.session.default_session != defaults.session.default_session {
+    dest.session.default_session = src.session.default_session;
+  }
 
   // Display
   if src.display.show_time != defaults.display.show_time {
@@ -602,6 +605,9 @@ pub fn extract_cli_config(matches: &getopts::Matches) -> Config {
   {
     config.session.xsession_wrapper = Some(wrapper);
   }
+  if let Some(session) = matches.opt_str("default-session") {
+    config.session.default_session = Some(session);
+  }
   // Layout config
   if let Some(width) = matches.opt_str("width")
     && let Ok(w) = width.parse::<u16>()
@@ -982,7 +988,6 @@ impl Config {
           .to_string(),
       );
     }
-
 
     // Warn about potentially invalid time formats
     if let Some(ref format) = self.display.time_format
