@@ -74,6 +74,15 @@ The following animation is available out of the box:
   `--matrix-length MIN,MAX` (rows, default `6,18`) and fall speed with
   `--matrix-speed MIN,MAX` (rows-per-frame, default `0.30,1.10`); the three
   color bands are set together with `--matrix-colors HEAD,BRIGHT,DIM`.
+- `orbit` - A procedurally generated ASCII planet with a satellite circling it,
+  ported from [Orbit-Nix's orbit-cli](https://github.com/Orbit-Nix/orbit-cli).
+  The scene scales with the terminal; `--orbit-scale` (default `1.0`) enlarges
+  or shrinks it and `--orbit-position X,Y` (fractions of the screen, default
+  `0.5,0.5`) moves the planet, which is useful for keeping it clear of the login
+  form. `--orbit-speed` (default `1.0`) multiplies the orbit and spin speed.
+  Every `--orbit-impact-interval` seconds (default `120`, `0` disables) a comet
+  destroys the planet and a new one is generated. Colors are set together with
+  `--orbit-colors PLANET,ORBIT,SATELLITE,IMPACT`.
 
 You can also switch animations on the fly without restarting the greeter by
 hitting `F4`. This opens a small menu listing every available animation plus a
@@ -308,6 +317,17 @@ max_length = 18
 min_speed = 0.30     # rows per frame
 max_speed = 1.10
 mutate_chance = 0.02 # per-cell glyph shimmer probability
+
+[background.orbit]
+planet_color = "#9CB8D9"
+orbit_color = "#5A677D"
+satellite_color = "#F2F2F2"
+impact_color = "#FF8C32"
+speed = 1.0          # orbit and spin speed multiplier
+scale = 1.0          # scene size multiplier
+center_x = 0.5       # planet position as a fraction of the screen
+center_y = 0.5
+impact_interval = 120 # seconds between comet impacts, 0 to disable
 
 [session]
 sessions_dirs = ["/usr/share/wayland-sessions", "/usr/share/xsessions"]
