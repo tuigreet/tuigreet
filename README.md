@@ -89,30 +89,23 @@ same way the existing F2/F3/F12 menus are configured.
 There are various methods of installing Tuigreet, and you're recommended to pick
 the appropriate method for your distribution or preferred package manager. We
 provide pre-built binaries for tagged releases, which can be obtained from the
-[releases tab]. Additionally, the maintainers of this project maintain packages
-for the Arch Linux AUR and Nix via flakes. If none of those interest you, you
-may build from source. Should you wish to package this for your distribution,
-please do, and submit a pull request to update the readme with per-distribution
-instructions. We will be happy to review :)
+[releases tab]. Tuigreet is also available through the official Arch Linux repositories and Nix via
+flakes. If none of those interest you, you may build from source. Should you
+wish to package this for your distribution, please do, and submit a pull
+request to update the readme with per-distribution instructions. We will be
+happy to review :)
 
-### From the AUR
+### From the Arch Linux repositories
 
-[AUR]: https://aur.archlinux.org/packages?O=0&K=tuigreet-fork
+[official Arch Linux package]: https://archlinux.org/packages/extra/x86_64/greetd-tuigreet
 
-On ArchLinux, two distributions are available from the [AUR].
-`greetd-tuigreet-fork-bin` is the precompiled binary for the latest tagged
-release, and `greetd-tuigreet-fork-git` is available for the same tagged
-release, but you compile it yourself from the latest commit Those can be
-installed via your preferred AUR helper, e.g.:
+On Arch Linux, greetd-tuigreet is available from the official Arch Linux repositories and can be installed with:
 
 ```bash
-# Install the built binary from the AUR. This uses tuigreet's own releases.
-$ yay -S greetd-tuigreet-fork-bin
-
-# Alternatively, use the -git version to build from source. This depends on
-# the Rust toolchain.
-$ yay -S greetd-tuigreet-fork-git
+sudo pacman -S greetd-tuigreet
 ```
+
+See the [official Arch Linux package] for more information.
 
 ### With Nix
 
