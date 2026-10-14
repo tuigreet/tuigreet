@@ -35,6 +35,7 @@ greetd_ipc         = { workspace = true }
 i18n-embed         = { workspace = true }
 nix                = { workspace = true }
 notify             = { workspace = true }
+portable-atomic    = { workspace = true }
 rand               = { workspace = true }
 rust-ini           = { workspace = true }
 tokio              = { workspace = true }

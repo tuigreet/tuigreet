@@ -2073,6 +2073,7 @@ dependencies = [
  "i18n-embed",
  "nix",
  "notify",
+ "portable-atomic",
  "rand",
  "ratatui",
  "regex",
