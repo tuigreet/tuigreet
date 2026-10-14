@@ -30,6 +30,7 @@ i18n-embed = { version = "0.16.0", features = [ "desktop-requester", "fluent-sys
 i18n-embed-fl = "0.10.1"
 nix = { version = "0.31.3", features = [ "feature", "ioctl" ] }
 notify = { version = "8.2.0", features = [ "macos_fsevent" ] }
+portable-atomic = "1"
 rand = "0.10.3"
 regex = "1.13.1"
 rust-embed = "8.13.0"

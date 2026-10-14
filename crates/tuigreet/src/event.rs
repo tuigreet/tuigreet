@@ -1,15 +1,10 @@
-use std::{
-  sync::{
-    Arc,
-    atomic::{AtomicU64, Ordering},
-  },
-  time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 #[cfg(not(test))] use crossterm::event::EventStream;
 use crossterm::event::{Event as TermEvent, KeyEvent};
 #[cfg(test)] use futures::stream;
 use futures::{StreamExt, future::FutureExt};
+use portable_atomic::{AtomicU64, Ordering};
 use tokio::{
   process::Command,
   sync::mpsc::{self, Sender},
