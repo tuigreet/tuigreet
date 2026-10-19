@@ -1,9 +1,9 @@
 {
   lib,
+  stdenv,
   craneLib,
   installShellFiles,
   versionCheckHook,
-  scdoc,
 }: let
   commonArgs = {
     pname = "tuigreet";
@@ -17,6 +17,7 @@
         fileset = fs.unions [
           (s + /contrib)
           (s + /crates)
+          (s + /xtask)
           (s + /Cargo.lock)
           (s + /Cargo.toml)
         ];
@@ -34,15 +35,22 @@ in
       nativeInstallCheckInputs = [versionCheckHook];
       doInstallCheck = true;
 
-      nativeBuildInputs = [
-        installShellFiles
-        scdoc
-      ];
+      nativeBuildInputs = [installShellFiles];
 
-      postInstall = ''
-        scdoc < ${../contrib}/man/tuigreet-1.scd > tuigreet.1
-        installManPage tuigreet.1
-      '';
+      postInstall =
+        (lib.optionalString (stdenv.buildPlatform.canExecute stdenv.hostPlatform) ''
+          $out/bin/xtask man --out-dir target/xtask/man
+          $out/bin/xtask comp --out-dir target/xtask/completions
+
+          installManPage target/xtask/man/tuigreet.1
+          installShellCompletion --cmd tuigreet \
+            --bash target/xtask/completions/tuigreet.bash \
+            --fish target/xtask/completions/tuigreet.fish \
+            --zsh target/xtask/completions/_tuigreet
+        '')
+        + ''
+          rm "$out/bin/xtask"
+        '';
 
       meta = {
         description = "Stylish graphical console greeter for greetd";
