@@ -174,7 +174,7 @@ const fn meridiem(locale: Locale) -> &'static [&'static str] {
 mod tests {
   use std::error::Error;
 
-  use jiff::civil::date;
+  use jiff::{civil::date, tz::TimeZone};
   use pure_rust_locales::Locale;
 
   use super::format_localized;
@@ -183,7 +183,8 @@ mod tests {
 
   #[test]
   fn localizes_german_weekday_and_month() -> Result<(), Box<dyn Error>> {
-    let datetime = date(2026, 10, 19).at(14, 5, 0, 0).in_tz("Europe/Berlin")?;
+    let datetime =
+      date(2026, 10, 19).at(14, 5, 0, 0).to_zoned(TimeZone::UTC)?;
 
     assert_eq!(
       format_localized(FORMAT, &datetime, Locale::de_DE)?,
@@ -194,7 +195,8 @@ mod tests {
 
   #[test]
   fn localizes_french_weekday_and_month() -> Result<(), Box<dyn Error>> {
-    let datetime = date(2026, 10, 19).at(14, 5, 0, 0).in_tz("Europe/Paris")?;
+    let datetime =
+      date(2026, 10, 19).at(14, 5, 0, 0).to_zoned(TimeZone::UTC)?;
 
     assert_eq!(
       format_localized(FORMAT, &datetime, Locale::fr_FR)?,
@@ -205,7 +207,8 @@ mod tests {
   #[test]
   fn preserves_english_names_and_numeric_fields() -> Result<(), Box<dyn Error>>
   {
-    let datetime = date(2026, 10, 19).at(14, 5, 6, 0).in_tz("UTC")?;
+    let datetime =
+      date(2026, 10, 19).at(14, 5, 6, 0).to_zoned(TimeZone::UTC)?;
 
     assert_eq!(
       format_localized(
@@ -224,7 +227,8 @@ mod tests {
 
   #[test]
   fn preserves_escapes_and_case_flags() -> Result<(), Box<dyn Error>> {
-    let datetime = date(2026, 10, 19).at(14, 5, 0, 0).in_tz("Europe/Berlin")?;
+    let datetime =
+      date(2026, 10, 19).at(14, 5, 0, 0).to_zoned(TimeZone::UTC)?;
 
     assert_eq!(
       format_localized("%%a %^a %#b %P", &datetime, Locale::de_DE)?,
