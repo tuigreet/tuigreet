@@ -52,6 +52,7 @@ async fn main() {
   let events = Events::new();
   let greeter = Greeter::new(events.sender()).await;
   events.set_frame_rate(greeter.frame_rate());
+  events.set_idle_timeout(greeter.idle_timeout());
 
   if let Err(error) = run(backend, greeter, events).await {
     if matches!(
@@ -152,10 +153,15 @@ where
   task::spawn({
     let greeter = Arc::clone(&greeter);
     let ipc = ipc.clone();
+    let event_tx = events.sender();
 
     async move {
       loop {
-        let _ = ipc.handle(Arc::clone(&greeter)).await;
+        if ipc.handle(Arc::clone(&greeter)).await.is_err() {
+          tracing::error!("greetd IPC handler failed");
+          let _ = event_tx.send(Event::Exit(AuthStatus::Failure)).await;
+          break;
+        }
       }
     }
   });
@@ -179,7 +185,16 @@ where
         ui::draw(Arc::clone(&greeter), &mut terminal).await?;
       },
       Some(Event::Key(key)) => {
-        keyboard::handle(Arc::clone(&greeter), key, ipc.clone()).await?;
+        if greeter.write().await.wake_from_idle() {
+          ui::draw(Arc::clone(&greeter), &mut terminal).await?;
+        } else {
+          keyboard::handle(Arc::clone(&greeter), key, ipc.clone()).await?;
+        }
+      },
+
+      Some(Event::Idle) => {
+        greeter.write().await.enter_idle();
+        ui::draw(Arc::clone(&greeter), &mut terminal).await?;
       },
 
       Some(Event::Exit(status)) => {
@@ -206,17 +221,34 @@ where
       },
 
       Some(Event::Refresh) => {
-        // Config was hot reloaded, force a render
+        // Config was hot reloaded; update event timing and force a render.
+        let timeout = greeter.read().await.idle_timeout();
+        events.set_idle_timeout(timeout);
         ui::draw(Arc::clone(&greeter), &mut terminal).await?;
       },
 
       Some(Event::SetFrameRate(fps)) => events.set_frame_rate(fps),
-
-      _ => {},
+      unexpected => return Err(event_stream_error(unexpected)),
     }
   }
 
   Ok(())
+}
+
+fn event_stream_error(event: Option<Event>) -> Box<dyn Error> {
+  match event {
+    Some(Event::InputError(error)) => error.into(),
+    None => {
+      io::Error::new(io::ErrorKind::BrokenPipe, "event channel closed").into()
+    },
+    Some(_) => {
+      io::Error::new(
+        io::ErrorKind::InvalidData,
+        "unexpected event reached the terminal error boundary",
+      )
+      .into()
+    },
+  }
 }
 
 async fn exit(greeter: &mut Greeter, status: AuthStatus) {
