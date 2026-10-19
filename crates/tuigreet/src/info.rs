@@ -8,8 +8,8 @@ use std::{
   sync::{Mutex, OnceLock, PoisonError},
 };
 
-use chrono::Local;
 use ini::Ini;
+use jiff::Zoned;
 use nix::sys::utsname::uname;
 use utmp_rs::{UtmpEntry, UtmpParser};
 use uzers::os::unix::UserExt;
@@ -67,11 +67,11 @@ pub fn get_hostname() -> String {
 
 pub fn get_issue() -> Option<String> {
   let (date, time) = {
-    let now = Local::now();
+    let now = Zoned::now();
 
     (
-      now.format("%a %b %_d %Y").to_string(),
-      now.format("%H:%M:%S").to_string(),
+      now.strftime("%a %b %_d %Y").to_string(),
+      now.strftime("%H:%M:%S").to_string(),
     )
   };
 

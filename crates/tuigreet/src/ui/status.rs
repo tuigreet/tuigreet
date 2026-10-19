@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use chrono::prelude::*;
+use jiff::Zoned;
 use tui::{
   layout::{Alignment, Constraint, Direction, Layout, Rect},
   style::Modifier,
@@ -23,6 +23,7 @@ use super::{
 };
 use crate::{
   Greeter,
+  datetime::format_localized,
   info::{capslock_status, get_battery_info},
   ui::sessions::SessionSource,
 };
@@ -501,9 +502,8 @@ fn get_time(greeter: &Greeter) -> String {
     .time_format
     .as_ref()
     .map_or_else(|| Cow::Owned(fl!("date")), Cow::Borrowed);
-  Local::now()
-    .format_localized(&format, greeter.locale)
-    .to_string()
+  format_localized(format.as_ref(), &Zoned::now(), greeter.locale)
+    .unwrap_or_default()
 }
 
 fn battery_text() -> Option<String> {

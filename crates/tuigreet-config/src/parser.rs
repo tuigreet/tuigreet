@@ -6,13 +6,13 @@ use std::{
   path::{Path, PathBuf},
 };
 
-use chrono::format::{Item, StrftimeItems};
 use codespan_reporting::{
   diagnostic::{Diagnostic, Label},
   files::{Files, SimpleFiles},
   term,
 };
 use dirs::config_dir;
+use jiff::{Zoned, fmt::strtime};
 use toml::de::Error as TomlError;
 
 use crate::{Config, ConfigError, SecretMode, cli::Cli};
@@ -422,7 +422,7 @@ impl Config {
 
   fn validate_time_format(&self) -> Result<(), ConfigError> {
     if let Some(format) = &self.display.time_format
-      && StrftimeItems::new(format).any(|item| matches!(item, Item::Error))
+      && strtime::format(format, &Zoned::now()).is_err()
     {
       return Err(ConfigError::InvalidTimeFormat);
     }

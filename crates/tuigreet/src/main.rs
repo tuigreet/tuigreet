@@ -2,6 +2,7 @@
 mod macros;
 
 mod action;
+mod datetime;
 mod event;
 mod greeter;
 mod info;
