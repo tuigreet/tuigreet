@@ -20,7 +20,6 @@ tuigreet-types   = { path = "crates/tuigreet-types", version = "0.11.0" }
 # External
 ansi-to-tui = "8.0.1"
 caress = "0.2.1"
-jiff = "0.2.38"
 codespan-reporting = "0.13.1"
 crossterm = { version = "0.29.0", features = [ "event-stream" ] }
 dirs = "7.0.0"
@@ -29,6 +28,7 @@ futures = "0.3.34"
 greetd_ipc = { version = "0.10.3", features = [ "tokio-codec" ] }
 i18n-embed = { version = "0.16.0", features = [ "desktop-requester", "fluent-system" ] }
 i18n-embed-fl = "0.10.1"
+jiff = { version = "0.2.38", default-features = false, features = [ "std", "tz-system", "tzdb-zoneinfo" ] }
 nix = { version = "0.31.3", features = [ "feature", "ioctl" ] }
 notify = { version = "8.2.0", features = [ "macos_fsevent" ] }
 pound = "0.5.2"
@@ -154,4 +154,6 @@ unused_unsafe          = "warn" # catch unnecessary unsafe blocks
 [profile.release]
 codegen-units = 1
 lto           = "thin"
+opt-level     = 3
+panic         = "abort"
 strip         = "symbols"
