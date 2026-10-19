@@ -64,7 +64,7 @@ async fn show_wrapped_greet() -> io::Result<()> {
 
       let output = runner.output().await?;
 
-      assert!(output.contains("┌ Authenticate into┐"));
+      assert!(output.contains("┌ Authenticate into┐"), "{:?}", output.0);
       assert!(output.contains("│    Lorem ipsum   │"));
       assert!(output.contains("│  dolor sit amet  │"));
       assert!(output.contains("└──────────────────┘"));
