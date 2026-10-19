@@ -1,0 +1,17 @@
+[package]
+name                   = "xtask"
+description            = "Repository maintenance tasks for tuigreet"
+publish                = false
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+caress          = { workspace = true }
+chrono          = { workspace = true }
+pound           = { workspace = true }
+tuigreet-config = { workspace = true }
