@@ -1,6 +1,6 @@
 use std::{
   error::Error,
-  path::{Path, PathBuf},
+  path::{PathBuf, absolute},
   sync::Arc,
   time::Duration,
 };
@@ -18,7 +18,7 @@ use tokio::{
   time::sleep,
 };
 use tracing::{debug, error, info, warn};
-use tuigreet_config::{Config, parser::load_config};
+use tuigreet_config::{Config, cli::Cli, parser::load_config};
 
 use crate::{Greeter, event::Event as GreeterEvent};
 
@@ -31,151 +31,152 @@ pub struct ConfigWatcher {
 }
 
 impl ConfigWatcher {
-  /// Create a new config file watcher.
-  ///
-  /// # Arguments
-  /// * `config_path` - Optional explicit config path, otherwise uses XDG/system
-  ///   paths
-  /// * `greeter` - Shared greeter state to update on config changes
-  /// * `event_sender` - Channel to send UI refresh events
-  ///
-  /// # Returns
-  /// `ConfigWatcher` that monitors the config file for changes
+  /// Create a watcher for the file selected by `cli`.
   ///
   /// # Errors
-  /// Returns error if file watcher cannot be initialized
+  /// Returns an error if the file watcher cannot be initialized.
   pub fn new(
-    config_path: Option<PathBuf>,
+    cli: Cli,
     greeter: Arc<RwLock<Greeter>>,
     event_sender: mpsc::Sender<GreeterEvent>,
   ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-    let (tx, mut rx) = mpsc::channel::<Result<Event, notify::Error>>(100);
-
-    // Create the file watcher
+    let (tx, rx) = mpsc::channel::<Result<Event, notify::Error>>(100);
     let mut watcher = RecommendedWatcher::new(
-      move |res| {
-        if let Err(e) = tx.blocking_send(res) {
-          error!("Failed to send file watch event: {}", e);
+      move |result| {
+        if let Err(error) = tx.try_send(result) {
+          error!("Failed to enqueue file watch event: {error}");
         }
       },
       NotifyConfig::default(),
     )?;
 
-    // Determine which config file to watch
-    let watch_path = config_path.as_ref().map_or_else(
-      || {
-        dirs::config_dir()
-          .map(|dir| dir.join("tuigreet").join("config.toml"))
-          .filter(|path| path.exists())
-          .unwrap_or_else(|| PathBuf::from("/etc/tuigreet/config.toml"))
-      },
-      Clone::clone,
-    );
-
-    // Only watch if the config file exists
-    if watch_path.exists() {
-      info!("Starting config file watcher for: {}", watch_path.display());
-
-      // Watch the parent directory to catch file recreations
-      if let Some(parent) = watch_path.parent() {
-        watcher.watch(parent, RecursiveMode::NonRecursive)?;
-      }
-    } else {
-      info!(
-        "Config file does not exist, hot reloading disabled: {}",
-        watch_path.display()
-      );
-    }
-
-    // Spawn background task to handle file events
-    tokio::spawn(async move {
-      while let Some(result) = rx.recv().await {
-        match result {
-          Ok(event) => {
-            // Check if this is a modification to our config file
-            if Self::is_config_event(&event, &watch_path) {
-              debug!("Config file change detected: {:?}", event);
-
-              // Add a small delay to avoid partial writes
-              sleep(Duration::from_millis(100)).await;
-
-              let new_config = {
-                let greeter_guard = greeter.read().await;
-                Self::reload_config(
-                  config_path.as_deref(),
-                  greeter_guard.config.as_ref(),
-                )
-              };
-
-              match new_config {
-                Ok(new_config) => {
-                  if let Err(e) =
-                    Self::apply_config_to_greeter(&greeter, new_config).await
-                  {
-                    error!("Failed to apply reloaded config: {}", e);
-                  } else {
-                    info!("Config successfully reloaded");
-                    // Optionally trigger a UI refresh
-                    if let Err(e) =
-                      event_sender.send(GreeterEvent::Refresh).await
-                    {
-                      warn!("Failed to send refresh event: {}", e);
-                    }
-                  }
-                },
-                Err(e) => {
-                  error!("Failed to reload config: {}", e);
-                },
-              }
-            }
-          },
-          Err(e) => {
-            error!("File watcher error: {}", e);
-          },
-        }
-      }
-    });
+    let watch_paths = Self::config_paths(&cli);
+    Self::watch_existing_files(&mut watcher, &watch_paths)?;
+    Self::spawn_event_task(rx, cli, greeter, event_sender, watch_paths);
 
     Ok(Self { _watcher: watcher })
   }
 
-  fn is_config_event(event: &Event, config_path: &Path) -> bool {
-    match event.kind {
-      EventKind::Modify(_) | EventKind::Create(_) => {
-        event.paths.iter().any(|path| path == config_path)
+  fn config_paths(cli: &Cli) -> Vec<PathBuf> {
+    if let Some(path) = cli.config_path() {
+      let path = absolute(path).unwrap_or_else(|_| path.to_path_buf());
+      return vec![path];
+    }
+
+    let mut paths = vec![PathBuf::from("/etc/tuigreet/config.toml")];
+    if let Some(path) = dirs::config_dir() {
+      paths.push(path.join("tuigreet").join("config.toml"));
+    }
+    paths
+  }
+
+  fn watch_existing_files(
+    watcher: &mut RecommendedWatcher,
+    paths: &[PathBuf],
+  ) -> Result<(), notify::Error> {
+    let mut watched_parents = Vec::new();
+    for path in paths {
+      if !path.exists() {
+        info!(
+          "Config file does not exist, not watching: {}",
+          path.display()
+        );
+        continue;
+      }
+      info!("Starting config file watcher for: {}", path.display());
+      let Some(parent) = path.parent() else {
+        continue;
+      };
+      if watched_parents.iter().any(|watched| watched == parent) {
+        continue;
+      }
+      watcher.watch(parent, RecursiveMode::NonRecursive)?;
+      watched_parents.push(parent.to_path_buf());
+    }
+    Ok(())
+  }
+
+  fn spawn_event_task(
+    mut rx: mpsc::Receiver<Result<Event, notify::Error>>,
+    cli: Cli,
+    greeter: Arc<RwLock<Greeter>>,
+    event_sender: mpsc::Sender<GreeterEvent>,
+    watch_paths: Vec<PathBuf>,
+  ) {
+    tokio::spawn(async move {
+      while let Some(result) = rx.recv().await {
+        Self::handle_watch_result(
+          result,
+          &cli,
+          &greeter,
+          &event_sender,
+          &watch_paths,
+        )
+        .await;
+      }
+    });
+  }
+
+  async fn handle_watch_result(
+    result: Result<Event, notify::Error>,
+    cli: &Cli,
+    greeter: &Arc<RwLock<Greeter>>,
+    event_sender: &mpsc::Sender<GreeterEvent>,
+    watch_paths: &[PathBuf],
+  ) {
+    match result {
+      Ok(event) if Self::is_config_event(&event, watch_paths) => {
+        debug!("Config file change detected: {:?}", event);
+        sleep(Duration::from_millis(100)).await;
+        Self::reload_and_apply(cli, greeter, event_sender).await;
       },
-      _ => false,
+      Ok(_) => {},
+      Err(error) => error!("File watcher error: {error}"),
     }
   }
 
-  fn reload_config(
-    cli_config_path: Option<&Path>,
-    cli_matches: Option<&getopts::Matches>,
-  ) -> Result<Config, Box<dyn Error + Send + Sync>> {
+  async fn reload_and_apply(
+    cli: &Cli,
+    greeter: &Arc<RwLock<Greeter>>,
+    event_sender: &mpsc::Sender<GreeterEvent>,
+  ) {
     debug!("Reloading configuration");
-
-    let config = load_config(cli_config_path, cli_matches)?;
-
-    match config.validate(false) {
-      Ok(warnings) => {
-        for warning in warnings {
-          warn!("Config warning after reload: {}", warning);
-        }
+    let loaded = match load_config(cli) {
+      Ok(loaded) => loaded,
+      Err(error) => {
+        error!("Failed to reload config: {error}");
+        return;
       },
-      Err(e) => {
-        return Err(
-          format!("Config validation failed after reload: {e}").into(),
-        );
-      },
+    };
+    for warning in loaded.warnings {
+      warn!("Config warning after reload: {warning}");
     }
 
-    Ok(config)
+    Self::apply_config_to_greeter(greeter, loaded.config).await;
+    info!("Config successfully reloaded");
+    let frame_rate = greeter.read().await.frame_rate();
+    if event_sender
+      .send(GreeterEvent::SetFrameRate(frame_rate))
+      .await
+      .is_err()
+      || event_sender.send(GreeterEvent::Refresh).await.is_err()
+    {
+      warn!("Failed to send configuration refresh events");
+    }
+  }
+
+  fn is_config_event(event: &Event, config_paths: &[PathBuf]) -> bool {
+    matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_))
+      && event
+        .paths
+        .iter()
+        .any(|event_path| config_paths.iter().any(|path| path == event_path))
   }
 
   async fn apply_config_to_greeter(
     greeter: &Arc<RwLock<Greeter>>,
     config: Config,
-  ) -> Result<(), Box<dyn Error + Send + Sync>> {
+  ) {
     let mut greeter_guard = greeter.write().await;
 
     // A tracing subscriber is installed once at startup and cannot be safely
@@ -190,19 +191,11 @@ impl ConfigWatcher {
 
     // Applying an already validated configuration replaces all
     // configuration-owned runtime state while holding this write lock.
-    greeter_guard.apply_config(&config);
+    greeter_guard.apply_config(config);
     (greeter_guard.debug, greeter_guard.logfile) = logger_settings;
     greeter_guard.reload_sessions();
-
-    // Apply theme configuration
-    let cli_theme = greeter_guard.config().opt_str("theme");
-    greeter_guard.apply_theme_config(&config.theme, cli_theme.as_deref());
-
-    // Store the new config
-    greeter_guard.loaded_config = Some(config);
     drop(greeter_guard);
 
     info!("Config hot reload completed successfully");
-    Ok(())
   }
 }

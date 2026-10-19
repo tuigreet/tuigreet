@@ -14,8 +14,15 @@ mod ui;
 #[cfg(test)] mod integration;
 
 #[cfg(not(test))] use std::mem;
-#[cfg(not(test))] use std::path::PathBuf;
-use std::{error::Error, io, panic, process, sync::Arc};
+use std::{
+  env,
+  error::Error,
+  fmt::Display,
+  io::{self, Write},
+  panic,
+  process,
+  sync::Arc,
+};
 
 #[cfg(not(test))]
 use crossterm::terminal::{
@@ -32,7 +39,10 @@ use crossterm::{
 use event::Event;
 use greetd_ipc::Request;
 use power::PowerPostAction;
-use tokio::{sync::RwLock, task};
+use tokio::{
+  sync::{RwLock, mpsc},
+  task,
+};
 #[cfg(not(test))]
 use tracing_appender::{non_blocking, non_blocking::WorkerGuard};
 #[cfg(not(test))] use tracing_subscriber::fmt;
@@ -40,6 +50,7 @@ use tui::{
   Terminal,
   backend::{Backend, CrosstermBackend},
 };
+use tuigreet_config::{Config, cli::Cli, parser::load_config};
 use tuigreet_types::AuthStatus;
 
 pub use self::greeter::*;
@@ -48,37 +59,141 @@ use self::{event::Events, ipc::Ipc, ui::common::masked::MaskedString};
 
 #[tokio::main]
 async fn main() {
+  if standalone_version_requested() {
+    let Some(()) = startup_value(print_version()) else {
+      process::exit(1);
+    };
+    return;
+  }
+  let cli = Cli::parse();
+  let Some(immediate_action) = startup_value(run_immediate_action(&cli)) else {
+    process::exit(1);
+  };
+  if immediate_action {
+    return;
+  }
+
+  let Some(loaded) = startup_value(load_config(&cli)) else {
+    process::exit(1);
+  };
+  if cli.dump_config {
+    let Some(()) = startup_value(write_effective_config(&loaded.config)) else {
+      process::exit(1);
+    };
+    return;
+  }
+
+  if !loaded.config.outputs.is_empty() || loaded.config.terminal.cols.is_some()
+  {
+    tuigreet_system::apply_output_config(
+      &loaded.config.outputs,
+      &loaded.config.terminal,
+    );
+  }
+
   let backend = CrosstermBackend::new(io::stdout());
   let events = Events::new();
-  let greeter = Greeter::new(events.sender()).await;
+  let greeter =
+    Greeter::new(events.sender(), loaded.config, cli.mock_mode).await;
+  for warning in loaded.warnings {
+    tracing::warn!("Config warning: {warning}");
+  }
   events.set_frame_rate(greeter.frame_rate());
   events.set_idle_timeout(greeter.idle_timeout());
 
-  if let Err(error) = run(backend, greeter, events).await {
+  if let Err(error) = run(backend, greeter, events, cli).await {
     if matches!(
       error.downcast_ref::<AuthStatus>(),
       Some(AuthStatus::Success)
     ) {
       return;
     }
-
     process::exit(1);
   }
+}
+
+fn standalone_version_requested() -> bool {
+  let mut args = env::args_os().skip(1);
+  let Some(arg) = args.next() else {
+    return false;
+  };
+  args.next().is_none()
+    && matches!(arg.to_str(), Some("-v" | "-V" | "--version"))
+}
+
+fn run_immediate_action(cli: &Cli) -> Result<bool, Box<dyn Error>> {
+  if cli.version {
+    print_version()?;
+    return Ok(true);
+  }
+  if cli.list_outputs {
+    tuigreet_system::list_outputs()?;
+    return Ok(true);
+  }
+  Ok(false)
+}
+
+fn write_effective_config(config: &Config) -> Result<(), Box<dyn Error>> {
+  let config = toml::to_string_pretty(config)?;
+  writeln!(io::stdout().lock(), "{config}")?;
+  Ok(())
+}
+
+fn startup_value<T, E: Display>(result: Result<T, E>) -> Option<T> {
+  match result {
+    Ok(value) => Some(value),
+    Err(error) => {
+      report_startup_error(error);
+      None
+    },
+  }
+}
+
+fn report_startup_error(error: impl Display) {
+  if let Err(write_error) = writeln!(io::stderr().lock(), "{error}") {
+    tracing::error!("Failed to write startup error: {write_error}");
+  }
+}
+
+fn print_version() -> io::Result<()> {
+  let mut stdout = io::stdout().lock();
+  writeln!(stdout, "tuigreet {} ({})", env!("VERSION"), env!("TARGET"))?;
+  writeln!(
+    stdout,
+    "Copyright (C) 2020 Antoine POPINEAU <https://github.com/apognu/tuigreet>."
+  )?;
+  writeln!(
+    stdout,
+    "Maintained by NotAShelf <https://github.com/NotAShelf/tuigreet>."
+  )?;
+  writeln!(
+    stdout,
+    "Licensed under GPLv3+ (GNU GPL version 3 or later)."
+  )?;
+  writeln!(stdout)?;
+  writeln!(
+    stdout,
+    "This is free software, you are welcome to redistribute it under some \
+     conditions."
+  )?;
+  writeln!(
+    stdout,
+    "There is NO WARRANTY, to the extent provided by law."
+  )
 }
 
 async fn run<B>(
   backend: B,
   mut greeter: Greeter,
   mut events: Events,
+  cli: Cli,
 ) -> Result<(), Box<dyn Error>>
 where
   B: Backend,
   B::Error: 'static,
 {
   tracing::info!("tuigreet started");
-
   register_panic_handler();
-
   if greeter.numlock {
     enable_numlock();
   }
@@ -89,28 +204,39 @@ where
     execute!(io::stdout(), EnterAlternateScreen)?;
   }
 
-  let mut terminal = Terminal::new(backend)?;
-
+  let terminal = Terminal::new(backend)?;
   #[cfg(not(test))]
-  terminal.clear()?;
+  let terminal = {
+    let mut terminal = terminal;
+    terminal.clear()?;
+    terminal
+  };
 
   events.start();
-
   let ipc = Ipc::new();
+  start_initial_session(&mut greeter, &ipc).await;
 
+  #[cfg(test)]
+  let _ = cli;
+  let greeter = Arc::new(RwLock::new(greeter));
+
+  #[cfg(not(test))]
+  let _config_watcher =
+    start_config_watcher(cli, Arc::clone(&greeter), events.sender());
+
+  spawn_ipc_handler(Arc::clone(&greeter), ipc.clone(), events.sender());
+  run_event_loop(terminal, greeter, ipc, &mut events).await
+}
+
+async fn start_initial_session(greeter: &mut Greeter, ipc: &Ipc) {
   if greeter.remember && !greeter.username.value.is_empty() {
     greeter.working = true;
-
     tracing::info!(
       "creating remembered session for user {}",
       greeter.username.value
     );
-
-    ipc
-      .send(Request::CreateSession {
-        username: greeter.username.value.clone(),
-      })
-      .await;
+    send_create_session(ipc, greeter.username.value.clone()).await;
+    return;
   }
 
   if greeter.user_menu
@@ -119,53 +245,60 @@ where
     && let Some(user) = greeter.users.options.first().cloned()
   {
     tracing::info!("auto-selecting sole eligible user: {}", user.username);
-
     greeter.username = MaskedString::from(user.username, user.name);
     greeter.working = true;
-
-    ipc
-      .send(Request::CreateSession {
-        username: greeter.username.value.clone(),
-      })
-      .await;
+    send_create_session(ipc, greeter.username.value.clone()).await;
   }
+}
 
-  let greeter = Arc::new(RwLock::new(greeter));
+async fn send_create_session(ipc: &Ipc, username: String) {
+  ipc.send(Request::CreateSession { username }).await;
+}
 
-  // Initialize config watcher for hot reloading
-  #[cfg(not(test))]
-  let _config_watcher = {
-    let config_path = {
-      let greeter_guard = greeter.read().await;
-      greeter_guard.config().opt_str("config").map(PathBuf::from)
-    };
+#[cfg(not(test))]
+fn start_config_watcher(
+  cli: Cli,
+  greeter: Arc<RwLock<Greeter>>,
+  event_sender: mpsc::Sender<Event>,
+) -> Option<ConfigWatcher> {
+  if cli.no_config {
+    return None;
+  }
+  match ConfigWatcher::new(cli, greeter, event_sender) {
+    Ok(watcher) => Some(watcher),
+    Err(error) => {
+      tracing::warn!("Failed to initialize config watcher: {error}");
+      None
+    },
+  }
+}
 
-    match ConfigWatcher::new(config_path, Arc::clone(&greeter), events.sender())
-    {
-      Ok(watcher) => Some(watcher),
-      Err(e) => {
-        tracing::warn!("Failed to initialize config watcher: {}", e);
-        None
-      },
-    }
-  };
-
-  task::spawn({
-    let greeter = Arc::clone(&greeter);
-    let ipc = ipc.clone();
-    let event_tx = events.sender();
-
-    async move {
-      loop {
-        if ipc.handle(Arc::clone(&greeter)).await.is_err() {
-          tracing::error!("greetd IPC handler failed");
-          let _ = event_tx.send(Event::Exit(AuthStatus::Failure)).await;
-          break;
-        }
+fn spawn_ipc_handler(
+  greeter: Arc<RwLock<Greeter>>,
+  ipc: Ipc,
+  event_tx: mpsc::Sender<Event>,
+) {
+  task::spawn(async move {
+    loop {
+      if ipc.handle(Arc::clone(&greeter)).await.is_err() {
+        tracing::error!("greetd IPC handler failed");
+        let _ = event_tx.send(Event::Exit(AuthStatus::Failure)).await;
+        break;
       }
     }
   });
+}
 
+async fn run_event_loop<B>(
+  mut terminal: Terminal<B>,
+  greeter: Arc<RwLock<Greeter>>,
+  ipc: Ipc,
+  events: &mut Events,
+) -> Result<(), Box<dyn Error>>
+where
+  B: Backend,
+  B::Error: 'static,
+{
   loop {
     let exit_status = greeter.read().await.exit;
     if let Some(status) = exit_status {
@@ -180,59 +313,68 @@ where
       return Err(status.into());
     }
 
-    match events.next().await {
-      Some(Event::Render) => {
-        ui::draw(Arc::clone(&greeter), &mut terminal).await?;
-      },
-      Some(Event::Key(key)) => {
-        if greeter.write().await.wake_from_idle() {
-          ui::draw(Arc::clone(&greeter), &mut terminal).await?;
-        } else {
-          keyboard::handle(Arc::clone(&greeter), key, ipc.clone()).await?;
-        }
-      },
-
-      Some(Event::Idle) => {
-        greeter.write().await.enter_idle();
-        ui::draw(Arc::clone(&greeter), &mut terminal).await?;
-      },
-
-      Some(Event::Exit(status)) => {
-        crate::exit(&mut *greeter.write().await, status).await;
-      },
-
-      Some(Event::PowerCommand(command)) => {
-        if matches!(
-          power::run(&greeter, command).await,
-          PowerPostAction::ClearScreen
-        ) {
-          execute!(io::stdout(), LeaveAlternateScreen)?;
-          terminal.set_cursor_position((1, 1))?;
-          terminal.clear()?;
-          execute!(io::stdout(), Hide)?;
-          disable_raw_mode()?;
-
-          // Same rationale as the exit-status branch above.
-          #[cfg(not(test))]
-          mem::forget(terminal);
-
-          break;
-        }
-      },
-
-      Some(Event::Refresh) => {
-        // Config was hot reloaded; update event timing and force a render.
-        let timeout = greeter.read().await.idle_timeout();
-        events.set_idle_timeout(timeout);
-        ui::draw(Arc::clone(&greeter), &mut terminal).await?;
-      },
-
-      Some(Event::SetFrameRate(fps)) => events.set_frame_rate(fps),
-      unexpected => return Err(event_stream_error(unexpected)),
+    if handle_event(events.next().await, &greeter, &ipc, events, &mut terminal)
+      .await?
+    {
+      // Same rationale as the exit-status branch above.
+      #[cfg(not(test))]
+      mem::forget(terminal);
+      return Ok(());
     }
   }
+}
 
-  Ok(())
+async fn handle_event<B>(
+  event: Option<Event>,
+  greeter: &Arc<RwLock<Greeter>>,
+  ipc: &Ipc,
+  events: &Events,
+  terminal: &mut Terminal<B>,
+) -> Result<bool, Box<dyn Error>>
+where
+  B: Backend,
+  B::Error: 'static,
+{
+  match event {
+    Some(Event::Render) => {
+      ui::draw(Arc::clone(greeter), terminal).await?;
+    },
+    Some(Event::Key(key)) => {
+      if greeter.write().await.wake_from_idle() {
+        ui::draw(Arc::clone(greeter), terminal).await?;
+      } else {
+        keyboard::handle(Arc::clone(greeter), key, ipc.clone()).await?;
+      }
+    },
+    Some(Event::Idle) => {
+      greeter.write().await.enter_idle();
+      ui::draw(Arc::clone(greeter), terminal).await?;
+    },
+    Some(Event::Exit(status)) => {
+      crate::exit(&mut *greeter.write().await, status).await;
+    },
+    Some(Event::PowerCommand(command)) => {
+      if matches!(
+        power::run(greeter, command).await,
+        PowerPostAction::ClearScreen
+      ) {
+        execute!(io::stdout(), LeaveAlternateScreen)?;
+        terminal.set_cursor_position((1, 1))?;
+        terminal.clear()?;
+        execute!(io::stdout(), Hide)?;
+        disable_raw_mode()?;
+        return Ok(true);
+      }
+    },
+    Some(Event::Refresh) => {
+      let timeout = greeter.read().await.idle_timeout();
+      events.set_idle_timeout(timeout);
+      ui::draw(Arc::clone(greeter), terminal).await?;
+    },
+    Some(Event::SetFrameRate(fps)) => events.set_frame_rate(fps),
+    unexpected => return Err(event_stream_error(unexpected)),
+  }
+  Ok(false)
 }
 
 fn event_stream_error(event: Option<Event>) -> Box<dyn Error> {

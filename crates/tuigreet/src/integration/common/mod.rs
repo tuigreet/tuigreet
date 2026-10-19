@@ -20,6 +20,7 @@ use tokio::{
   time::timeout,
 };
 use tui::buffer::Buffer;
+use tuigreet_config::{Config, cli::Cli};
 use tuigreet_types::AuthStatus;
 
 use self::{
@@ -77,16 +78,12 @@ impl IntegrationRunner {
     });
 
     let client = spawn(async move {
-      let mut greeter = Greeter::new(events.sender()).await;
+      let mut greeter =
+        Greeter::new(events.sender(), Config::default(), false).await;
       greeter.session_source = SessionSource::Command("uname".to_string());
 
       if let Some(builder) = builder {
         builder(&mut greeter);
-      }
-
-      if greeter.config.is_none() {
-        greeter.config =
-          Some(Greeter::options().parse([""]).map_err(io::Error::other)?);
       }
 
       greeter.logfile = "/tmp/tuigreet.log".to_string();
@@ -94,7 +91,9 @@ impl IntegrationRunner {
       greeter.events = Some(events.sender());
       greeter.connect().await;
 
-      match run(backend, greeter, events).await {
+      let cli = Cli::try_parse_from(["--no-config"])
+        .map_err(|error| io::Error::other(error.to_string()))?;
+      match run(backend, greeter, events, cli).await {
         Ok(()) => Ok(()),
         // Authentication and explicit user exits are normal test completion.
         Err(error)

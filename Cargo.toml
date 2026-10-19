@@ -23,13 +23,14 @@ chrono = { version = "0.4.45", features = [ "unstable-locales" ] }
 codespan-reporting = "0.13.1"
 crossterm = { version = "0.29.0", features = [ "event-stream" ] }
 dirs = "7.0.0"
+flub = "0.1.0"
 futures = "0.3.34"
-getopts = "0.2.24"
 greetd_ipc = { version = "0.10.3", features = [ "tokio-codec" ] }
 i18n-embed = { version = "0.16.0", features = [ "desktop-requester", "fluent-system" ] }
 i18n-embed-fl = "0.10.1"
 nix = { version = "0.31.3", features = [ "feature", "ioctl" ] }
 notify = { version = "8.2.0", features = [ "macos_fsevent" ] }
+pound = "0.5.2"
 rand = "0.10.3"
 regex = "1.13.1"
 rust-embed = "8.13.0"

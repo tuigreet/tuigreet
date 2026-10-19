@@ -478,6 +478,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
 
 [[package]]
+name = "flub"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8dafd7b8315f0512f6cc3ce477bd02462188dabf194c678d3bb8dd803a20db27"
+dependencies = [
+ "flub-derive",
+]
+
+[[package]]
+name = "flub-derive"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0c21917c538f4d0ad7e7e0019ed0ce3a287c0573a29ced48fbc641cf93ae245"
+
+[[package]]
 name = "fluent"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1234,6 +1249,35 @@ name = "portable-atomic"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05c8b63e8d9609db387f0324918f81d68fe27748f084ef092fb35954d0539a85"
+
+[[package]]
+name = "pound"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88a1548289dfa12bd53954303a19ef93cfc3d834f9211e3e182bf12aef41f003"
+dependencies = [
+ "pound-derive",
+]
+
+[[package]]
+name = "pound-derive"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b0f793b0c8b1db299b1a3bd960b8bd7b5aadc58b2291b647c8c0faa91b14af4"
+dependencies = [
+ "pound-derive-impl",
+]
+
+[[package]]
+name = "pound-derive-impl"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a6ddc2609d7787602494304b1b676676cddcc2f775db9aae178d4f47c6b7a45"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "venial",
+]
 
 [[package]]
 name = "powerfmt"
@@ -2067,7 +2111,6 @@ dependencies = [
  "crossterm",
  "dirs",
  "futures",
- "getopts",
  "greetd-stub",
  "greetd_ipc",
  "i18n-embed",
@@ -2101,10 +2144,11 @@ dependencies = [
  "chrono",
  "codespan-reporting",
  "dirs",
- "getopts",
+ "flub",
+ "pound",
  "serde",
+ "tempfile",
  "toml 1.1.8+spec-1.1.0",
- "tracing",
 ]
 
 [[package]]
@@ -2245,6 +2289,16 @@ name = "valuable"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
+
+[[package]]
+name = "venial"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a42528baceab6c7784446df2a10f4185078c39bf73dc614f154353f1a6b1229"
+dependencies = [
+ "proc-macro2",
+ "quote",
+]
 
 [[package]]
 name = "walkdir"
