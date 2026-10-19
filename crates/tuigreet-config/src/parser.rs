@@ -183,64 +183,99 @@ fn apply_config_layer(dest: &mut Config, src: Config) {
   if src.layout.prompt_padding != defaults.layout.prompt_padding {
     dest.layout.prompt_padding = src.layout.prompt_padding;
   }
-  if src.layout.widgets.time_position != defaults.layout.widgets.time_position {
-    dest.layout.widgets.time_position = src.layout.widgets.time_position;
-  }
-  if src.layout.widgets.status_position
-    != defaults.layout.widgets.status_position
-  {
-    dest.layout.widgets.status_position = src.layout.widgets.status_position;
-  }
-  if src.layout.widgets.battery_position
-    != defaults.layout.widgets.battery_position
-  {
-    dest.layout.widgets.battery_position =
-      src.layout.widgets.battery_position.clone();
-  }
+  merge_nondefault(
+    &mut dest.layout.prompt.anchor,
+    src.layout.prompt.anchor,
+    &defaults.layout.prompt.anchor,
+  );
+  merge_nondefault(
+    &mut dest.layout.prompt.offset_x,
+    src.layout.prompt.offset_x,
+    &defaults.layout.prompt.offset_x,
+  );
+  merge_nondefault(
+    &mut dest.layout.prompt.offset_y,
+    src.layout.prompt.offset_y,
+    &defaults.layout.prompt.offset_y,
+  );
+  merge_nondefault(
+    &mut dest.layout.prompt.edge_margin,
+    src.layout.prompt.edge_margin,
+    &defaults.layout.prompt.edge_margin,
+  );
+  merge_nondefault(
+    &mut dest.layout.widgets.time_position,
+    src.layout.widgets.time_position,
+    &defaults.layout.widgets.time_position,
+  );
+  merge_nondefault(
+    &mut dest.layout.widgets.status_position,
+    src.layout.widgets.status_position,
+    &defaults.layout.widgets.status_position,
+  );
+  merge_nondefault(
+    &mut dest.layout.widgets.battery_position,
+    src.layout.widgets.battery_position,
+    &defaults.layout.widgets.battery_position,
+  );
+  merge_nonempty(
+    &mut dest.layout.widgets.regions.top_left,
+    src.layout.widgets.regions.top_left,
+  );
+  merge_nonempty(
+    &mut dest.layout.widgets.regions.top_right,
+    src.layout.widgets.regions.top_right,
+  );
+  merge_nonempty(
+    &mut dest.layout.widgets.regions.bottom_left,
+    src.layout.widgets.regions.bottom_left,
+  );
+  merge_nonempty(
+    &mut dest.layout.widgets.regions.bottom_right,
+    src.layout.widgets.regions.bottom_right,
+  );
 
   // Status bar item visibility
-  if src.layout.widgets.status_bar.show_reset
-    != defaults.layout.widgets.status_bar.show_reset
-  {
-    dest.layout.widgets.status_bar.show_reset =
-      src.layout.widgets.status_bar.show_reset;
-  }
-  if src.layout.widgets.status_bar.show_command
-    != defaults.layout.widgets.status_bar.show_command
-  {
-    dest.layout.widgets.status_bar.show_command =
-      src.layout.widgets.status_bar.show_command;
-  }
-  if src.layout.widgets.status_bar.show_session
-    != defaults.layout.widgets.status_bar.show_session
-  {
-    dest.layout.widgets.status_bar.show_session =
-      src.layout.widgets.status_bar.show_session;
-  }
-  if src.layout.widgets.status_bar.show_power
-    != defaults.layout.widgets.status_bar.show_power
-  {
-    dest.layout.widgets.status_bar.show_power =
-      src.layout.widgets.status_bar.show_power;
-  }
-  if src.layout.widgets.status_bar.show_background
-    != defaults.layout.widgets.status_bar.show_background
-  {
-    dest.layout.widgets.status_bar.show_background =
-      src.layout.widgets.status_bar.show_background;
-  }
-  if src.layout.widgets.status_bar.show_session_status
-    != defaults.layout.widgets.status_bar.show_session_status
-  {
-    dest.layout.widgets.status_bar.show_session_status =
-      src.layout.widgets.status_bar.show_session_status;
-  }
-  if src.layout.widgets.status_bar.show_caps_lock
-    != defaults.layout.widgets.status_bar.show_caps_lock
-  {
-    dest.layout.widgets.status_bar.show_caps_lock =
-      src.layout.widgets.status_bar.show_caps_lock;
-  }
+  merge_nondefault(
+    &mut dest.layout.widgets.status_bar.show_reset,
+    src.layout.widgets.status_bar.show_reset,
+    &defaults.layout.widgets.status_bar.show_reset,
+  );
+  merge_nondefault(
+    &mut dest.layout.widgets.status_bar.show_command,
+    src.layout.widgets.status_bar.show_command,
+    &defaults.layout.widgets.status_bar.show_command,
+  );
+  merge_nondefault(
+    &mut dest.layout.widgets.status_bar.show_session,
+    src.layout.widgets.status_bar.show_session,
+    &defaults.layout.widgets.status_bar.show_session,
+  );
+  merge_nondefault(
+    &mut dest.layout.widgets.status_bar.show_power,
+    src.layout.widgets.status_bar.show_power,
+    &defaults.layout.widgets.status_bar.show_power,
+  );
+  merge_nondefault(
+    &mut dest.layout.widgets.status_bar.show_background,
+    src.layout.widgets.status_bar.show_background,
+    &defaults.layout.widgets.status_bar.show_background,
+  );
+  merge_nondefault(
+    &mut dest.layout.widgets.status_bar.show_session_status,
+    src.layout.widgets.status_bar.show_session_status,
+    &defaults.layout.widgets.status_bar.show_session_status,
+  );
+  merge_nondefault(
+    &mut dest.layout.widgets.status_bar.show_caps_lock,
+    src.layout.widgets.status_bar.show_caps_lock,
+    &defaults.layout.widgets.status_bar.show_caps_lock,
+  );
+  merge_nondefault(
+    &mut dest.layout.widgets.status_bar.show_password,
+    src.layout.widgets.status_bar.show_password,
+    &defaults.layout.widgets.status_bar.show_password,
+  );
 
   // Power
   if src.power.shutdown != defaults.power.shutdown {
@@ -259,19 +294,40 @@ fn apply_config_layer(dest: &mut Config, src: Config) {
     dest.power.use_setsid = src.power.use_setsid;
   }
 
+  // Idle behavior
+  merge_nondefault(
+    &mut dest.idle.timeout_seconds,
+    src.idle.timeout_seconds,
+    &defaults.idle.timeout_seconds,
+  );
+  merge_nondefault(
+    &mut dest.idle.action,
+    src.idle.action,
+    &defaults.idle.action,
+  );
+
   // Keybindings
-  if src.keybindings.command != defaults.keybindings.command {
-    dest.keybindings.command = src.keybindings.command;
-  }
-  if src.keybindings.sessions != defaults.keybindings.sessions {
-    dest.keybindings.sessions = src.keybindings.sessions;
-  }
-  if src.keybindings.power != defaults.keybindings.power {
-    dest.keybindings.power = src.keybindings.power;
-  }
-  if src.keybindings.background != defaults.keybindings.background {
-    dest.keybindings.background = src.keybindings.background;
-  }
+  merge_nondefault(
+    &mut dest.keybindings.command,
+    src.keybindings.command,
+    &defaults.keybindings.command,
+  );
+  merge_nondefault(
+    &mut dest.keybindings.sessions,
+    src.keybindings.sessions,
+    &defaults.keybindings.sessions,
+  );
+  merge_nondefault(
+    &mut dest.keybindings.power,
+    src.keybindings.power,
+    &defaults.keybindings.power,
+  );
+  merge_nondefault(
+    &mut dest.keybindings.background,
+    src.keybindings.background,
+    &defaults.keybindings.background,
+  );
+  merge_nonempty(&mut dest.keybindings.actions, src.keybindings.actions);
 
   // Background animation
   if src.background.kind.is_some() {
@@ -363,6 +419,18 @@ fn apply_config_layer(dest: &mut Config, src: Config) {
   }
   if src.theme.button.is_some() {
     dest.theme.button = src.theme.button;
+  }
+}
+
+fn merge_nondefault<T: PartialEq>(dest: &mut T, source: T, default: &T) {
+  if &source != default {
+    *dest = source;
+  }
+}
+
+fn merge_nonempty<T>(dest: &mut Vec<T>, source: Vec<T>) {
+  if !source.is_empty() {
+    *dest = source;
   }
 }
 
@@ -761,7 +829,6 @@ impl Config {
     validate_wrappers: bool,
   ) -> Result<Vec<String>, ConfigError> {
     let mut warnings = Vec::new();
-
     if self.display.asterisks.is_some() {
       warnings.push(
         "display.asterisks is deprecated; use secret.mode = \"characters\" or \
@@ -770,28 +837,42 @@ impl Config {
       );
     }
 
-    // Check mutually exclusive options
+    self.validate_relationships()?;
+    self.validate_layout()?;
+    self.validate_keybindings()?;
+    self.validate_time_format()?;
+    if validate_wrappers {
+      self.validate_wrappers()?;
+    }
+    self.validate_outputs(&mut warnings)?;
+    if let Some(reason) = self.terminal.invalid_reason() {
+      return Err(ConfigError::Validation(reason));
+    }
+    self.check_warnings(&mut warnings);
+    Ok(warnings)
+  }
+
+  fn validate_relationships(&self) -> Result<(), ConfigError> {
     if self.display.issue && self.display.greeting.is_some() {
       return Err(ConfigError::MutuallyExclusive(
         "display.issue".to_string(),
         "display.greeting".to_string(),
       ));
     }
-
-    // Check dependencies
     if self.remember.user_session && !self.remember.username {
       return Err(ConfigError::Dependency(
         "remember.user_session requires remember.username".to_string(),
       ));
     }
-
-    // Check UID ranges
     if self.user_menu.min_uid > self.user_menu.max_uid {
       return Err(ConfigError::InvalidRange(
         "user_menu.min_uid must not exceed user_menu.max_uid".to_string(),
       ));
     }
+    Ok(())
+  }
 
+  fn validate_layout(&self) -> Result<(), ConfigError> {
     if self.layout.width == 0 {
       return Err(ConfigError::Validation(
         "layout.width must be greater than 0".to_string(),
@@ -808,8 +889,10 @@ impl Config {
         )));
       }
     }
+    Ok(())
+  }
 
-    // Check keybindings are distinct
+  fn validate_keybindings(&self) -> Result<(), ConfigError> {
     let keys = [
       self.keybindings.command,
       self.keybindings.sessions,
@@ -819,8 +902,6 @@ impl Config {
     if keys.iter().collect::<HashSet<_>>().len() != keys.len() {
       return Err(ConfigError::DuplicateKeybindings);
     }
-
-    // Check F-key ranges
     for (name, key) in [
       ("command", self.keybindings.command),
       ("sessions", self.keybindings.sessions),
@@ -832,67 +913,77 @@ impl Config {
       }
     }
 
-    // Validate time format if provided
-    if let Some(ref format) = self.display.time_format
+    let mut custom_keys = HashSet::new();
+    let mut custom_actions = HashSet::new();
+    for binding in &self.keybindings.actions {
+      if !custom_keys.insert(binding.key) {
+        return Err(ConfigError::Validation(format!(
+          "duplicate custom keybinding '{}'",
+          binding.key
+        )));
+      }
+      if !custom_actions.insert(binding.action) {
+        return Err(ConfigError::Validation(format!(
+          "action '{:?}' is bound more than once",
+          binding.action
+        )));
+      }
+    }
+    Ok(())
+  }
+
+  fn validate_time_format(&self) -> Result<(), ConfigError> {
+    if let Some(format) = &self.display.time_format
       && StrftimeItems::new(format).any(|item| matches!(item, Item::Error))
     {
       return Err(ConfigError::InvalidTimeFormat);
     }
+    Ok(())
+  }
 
-    // Validate session wrapper executables if requested
-    if validate_wrappers {
-      if let Some(ref wrapper) = self.session.session_wrapper {
-        Self::validate_wrapper_command(wrapper)?;
-      }
-      if let Some(ref wrapper) = self.session.xsession_wrapper {
-        Self::validate_wrapper_command(wrapper)?;
-      }
+  fn validate_wrappers(&self) -> Result<(), ConfigError> {
+    if let Some(wrapper) = &self.session.session_wrapper {
+      Self::validate_wrapper_command(wrapper)?;
     }
+    if let Some(wrapper) = &self.session.xsession_wrapper {
+      Self::validate_wrapper_command(wrapper)?;
+    }
+    Ok(())
+  }
 
-    // Validate [[outputs]] entries
-    {
-      let primary_count = self.outputs.iter().filter(|o| o.primary).count();
-      if primary_count > 1 {
+  fn validate_outputs(
+    &self,
+    warnings: &mut Vec<String>,
+  ) -> Result<(), ConfigError> {
+    let primary_count =
+      self.outputs.iter().filter(|output| output.primary).count();
+    if primary_count > 1 {
+      return Err(ConfigError::Validation(format!(
+        "At most one output may be marked `primary = true`, but \
+         {primary_count} are"
+      )));
+    }
+    for output in &self.outputs {
+      if output.connector.contains('/') || output.connector.contains("..") {
         return Err(ConfigError::Validation(format!(
-          "At most one output may be marked `primary = true`, but \
-           {primary_count} are"
+          "Output connector name '{}' must not contain path separators",
+          output.connector
         )));
       }
-
-      for output in &self.outputs {
-        if output.connector.contains('/') || output.connector.contains("..") {
-          return Err(ConfigError::Validation(format!(
-            "Output connector name '{}' must not contain path separators",
-            output.connector
-          )));
-        }
-        if output.connector.is_empty() {
-          return Err(ConfigError::Validation(
-            "Output connector name must not be empty".to_string(),
-          ));
-        }
-      }
-
-      // Warn if [[outputs]] is configured but all are disabled
-      if !self.outputs.is_empty() && self.outputs.iter().all(|o| !o.enabled) {
-        warnings.push(
-          "All [[outputs]] entries have `enabled = false`; no output will be \
-           used for terminal sizing"
-            .to_string(),
-        );
+      if output.connector.is_empty() {
+        return Err(ConfigError::Validation(
+          "Output connector name must not be empty".to_string(),
+        ));
       }
     }
-
-    // Validate [terminal].
-    // Both cols and rows must be set together
-    if let Some(reason) = self.terminal.invalid_reason() {
-      return Err(ConfigError::Validation(reason));
+    if !self.outputs.is_empty() && self.outputs.iter().all(|o| !o.enabled) {
+      warnings.push(
+        "All [[outputs]] entries have `enabled = false`; no output will be \
+         used for terminal sizing"
+          .to_string(),
+      );
     }
-
-    // Add validation warnings for potentially problematic configurations
-    self.check_warnings(&mut warnings);
-
-    Ok(warnings)
+    Ok(())
   }
 
   /// Check for configuration warnings
@@ -1092,6 +1183,7 @@ fn command_exists(command: &str) -> bool {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use crate::{BindingAction, IdleAction, PromptAnchor, RegionItem};
 
   #[test]
   fn toml_layers_preserve_explicit_default_values() -> Result<(), ConfigError> {
@@ -1597,27 +1689,127 @@ mod tests {
 
   #[test]
   fn test_lower_layer_preserved_when_higher_layer_uses_defaults() {
-    // System config sets a non-default value
     let mut config = Config::default();
     config.keybindings.power = 10;
     config.display.show_time = true;
     config.remember.username = true;
+    config.layout.prompt.offset_x = 9;
+    config.idle.action = IdleAction::PauseAnimation;
+    config.layout.widgets.regions.top_left = vec![RegionItem::Time];
 
-    // User config only touches one unrelated field; all others remain at
-    // their defaults and must NOT overwrite the system values above.
     let mut user = Config::default();
     user.display.greeting = Some("hello".to_string());
+    user.layout.prompt.offset_y = 3;
+    user.idle.timeout_seconds = 20;
+    user.layout.widgets.regions.bottom_right = vec![RegionItem::Actions];
     apply_config_layer(&mut config, user);
 
-    assert_eq!(
-      config.keybindings.power, 10,
-      "system keybinding must survive"
-    );
-    assert!(config.display.show_time, "system show_time must survive");
-    assert!(
-      config.remember.username,
-      "system remember.username must survive"
-    );
-    assert_eq!(config.display.greeting, Some("hello".to_string()));
+    assert_eq!(config.keybindings.power, 10);
+    assert!(config.display.show_time);
+    assert!(config.remember.username);
+    assert_eq!(config.display.greeting.as_deref(), Some("hello"));
+    assert_eq!(config.layout.prompt.offset_x, 9);
+    assert_eq!(config.layout.prompt.offset_y, 3);
+    assert_eq!(config.idle.action, IdleAction::PauseAnimation);
+    assert_eq!(config.idle.timeout_seconds, 20);
+    assert_eq!(config.layout.widgets.regions.top_left, [RegionItem::Time]);
+    assert_eq!(config.layout.widgets.regions.bottom_right, [
+      RegionItem::Actions
+    ]);
+  }
+  #[test]
+  fn parses_high_value_interaction_configuration() -> Result<(), ConfigError> {
+    let config: Config = toml::from_str(
+      r#"
+      [idle]
+      timeout_seconds = 45
+      action = "pause_animation"
+
+      [layout.prompt]
+      anchor = "bottom_right"
+      offset_x = -3
+      offset_y = 2
+      edge_margin = 4
+
+      [layout.widgets.regions]
+      top_left = ["time", "battery"]
+      bottom_right = ["session", "actions", "caps_lock"]
+
+      [[keybindings.actions]]
+      key = "alt+p"
+      action = "power"
+
+      [[keybindings.actions]]
+      key = "ctrl+r"
+      action = "toggle_password"
+      "#,
+    )?;
+
+    assert_eq!(config.idle.timeout_seconds, 45);
+    assert_eq!(config.idle.action, IdleAction::PauseAnimation);
+    assert_eq!(config.layout.prompt.anchor, PromptAnchor::BottomRight);
+    assert_eq!(config.layout.prompt.offset_x, -3);
+    assert_eq!(config.layout.prompt.offset_y, 2);
+    assert_eq!(config.layout.prompt.edge_margin, 4);
+    assert_eq!(config.layout.widgets.regions.top_left, vec![
+      RegionItem::Time,
+      RegionItem::Battery
+    ]);
+    assert_eq!(config.layout.widgets.regions.bottom_right, vec![
+      RegionItem::Session,
+      RegionItem::Actions,
+      RegionItem::CapsLock
+    ]);
+    let [power, toggle] = config.keybindings.actions.as_slice() else {
+      return Err(ConfigError::Validation(
+        "expected exactly two action bindings".to_string(),
+      ));
+    };
+    assert_eq!(power.key.to_string(), "Alt+p");
+    assert_eq!(power.action, BindingAction::Power);
+    assert_eq!(toggle.key.to_string(), "Ctrl+r");
+    assert_eq!(toggle.action, BindingAction::TogglePassword);
+    assert!(config.validate(false).is_ok());
+    Ok(())
+  }
+
+  #[test]
+  fn rejects_unmodified_printable_action_keys_during_parsing()
+  -> Result<(), ConfigError> {
+    let Err(error) = toml::from_str::<Config>(
+      r#"
+      [[keybindings.actions]]
+      key = "r"
+      action = "toggle_password"
+      "#,
+    ) else {
+      return Err(ConfigError::Validation(
+        "unmodified printable action key was accepted".to_string(),
+      ));
+    };
+
+    assert!(error.to_string().contains("printable action keys require"));
+    Ok(())
+  }
+
+  #[test]
+  fn rejects_duplicate_custom_action_chords() -> Result<(), ConfigError> {
+    let config: Config = toml::from_str(
+      r#"
+      [[keybindings.actions]]
+      key = "ctrl+b"
+      action = "background"
+
+      [[keybindings.actions]]
+      key = "CTRL+B"
+      action = "power"
+      "#,
+    )?;
+
+    assert!(matches!(
+      config.validate(false),
+      Err(ConfigError::Validation(message)) if message.contains("duplicate custom keybinding")
+    ));
+    Ok(())
   }
 }

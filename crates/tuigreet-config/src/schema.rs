@@ -1,4 +1,12 @@
-use serde::{Deserialize, Serialize};
+use std::{borrow::Cow, error::Error as StdError, fmt, str::FromStr};
+
+use serde::{
+  Deserialize,
+  Deserializer,
+  Serialize,
+  Serializer,
+  de::Error as DeserializeError,
+};
 
 /// Root configuration structure
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -34,6 +42,9 @@ pub struct Config {
 
   #[serde(default)]
   pub keybindings: KeybindingsConfig,
+
+  #[serde(default)]
+  pub idle: IdleConfig,
 
   #[serde(default)]
   pub theme: ThemeConfig,
@@ -335,6 +346,10 @@ pub struct LayoutConfig {
   #[serde(default)]
   pub prompt_padding: Option<u16>,
 
+  /// Prompt placement options
+  #[serde(default)]
+  pub prompt: PromptLayoutConfig,
+
   /// Widget positioning options
   #[serde(default)]
   pub widgets: WidgetConfig,
@@ -347,13 +362,108 @@ impl Default for LayoutConfig {
       window_padding:    None,
       container_padding: None,
       prompt_padding:    None,
+      prompt:            PromptLayoutConfig::default(),
       widgets:           WidgetConfig::default(),
     }
   }
 }
 
-/// Battery widget placement
+/// Anchor used to place the prompt inside the available terminal area.
+#[derive(
+  Debug, Clone, Copy, Deserialize, Serialize, Default, PartialEq, Eq,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum PromptAnchor {
+  /// Top-left corner.
+  TopLeft,
+  /// Center of the top edge.
+  TopCenter,
+  /// Top-right corner.
+  TopRight,
+  /// Center of the left edge.
+  CenterLeft,
+  /// Center of the available area.
+  #[default]
+  Center,
+  /// Center of the right edge.
+  CenterRight,
+  /// Bottom-left corner.
+  BottomLeft,
+  /// Center of the bottom edge.
+  BottomCenter,
+  /// Bottom-right corner.
+  BottomRight,
+}
+
+/// Prompt placement and safe-area configuration.
+#[derive(
+  Debug, Clone, Copy, Deserialize, Serialize, Default, PartialEq, Eq,
+)]
+pub struct PromptLayoutConfig {
+  /// Point in the available terminal area to which the prompt is anchored.
+  #[serde(default)]
+  pub anchor: PromptAnchor,
+
+  /// Signed horizontal adjustment after anchoring.
+  #[serde(default)]
+  pub offset_x: i16,
+
+  /// Signed vertical adjustment after anchoring.
+  #[serde(default)]
+  pub offset_y: i16,
+
+  /// Minimum distance between the prompt and an edge of the available area.
+  #[serde(default)]
+  pub edge_margin: u16,
+}
+
+/// Existing widgets that can be composed into terminal edge regions.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RegionItem {
+  /// Current time.
+  Time,
+  /// Battery charge and charging state.
+  Battery,
+  /// Configured action shortcuts.
+  Actions,
+  /// Current session or command.
+  Session,
+  /// Caps Lock state.
+  CapsLock,
+}
+
+/// Composable one-line regions at the top and bottom edges of the UI.
 #[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]
+pub struct RegionConfig {
+  /// Items aligned to the top-left edge.
+  #[serde(default)]
+  pub top_left:     Vec<RegionItem>,
+  /// Items aligned to the top-right edge.
+  #[serde(default)]
+  pub top_right:    Vec<RegionItem>,
+  /// Items aligned to the bottom-left edge.
+  #[serde(default)]
+  pub bottom_left:  Vec<RegionItem>,
+  /// Items aligned to the bottom-right edge.
+  #[serde(default)]
+  pub bottom_right: Vec<RegionItem>,
+}
+
+impl RegionConfig {
+  #[must_use]
+  pub const fn is_configured(&self) -> bool {
+    !self.top_left.is_empty()
+      || !self.top_right.is_empty()
+      || !self.bottom_left.is_empty()
+      || !self.bottom_right.is_empty()
+  }
+}
+
+/// Battery widget placement
+#[derive(
+  Debug, Clone, Copy, Deserialize, Serialize, Default, PartialEq, Eq,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum BatteryPosition {
   #[default]
@@ -376,46 +486,55 @@ pub struct WidgetConfig {
   #[serde(default)]
   pub battery_position: BatteryPosition,
 
-  /// Status bar item visibility
+  /// Composable edge regions. Any configured region supersedes legacy widget
+  /// positioning while preserving the legacy defaults when all are empty.
+  #[serde(default)]
+  pub regions: RegionConfig,
+
+  /// Status-bar item visibility.
   #[serde(default)]
   pub status_bar: StatusBarConfig,
 }
 
 /// Status bar item visibility configuration
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[expect(
   clippy::struct_excessive_bools,
   reason = "Each independently configurable status-bar item has its own \
             serialized visibility toggle."
 )]
 pub struct StatusBarConfig {
-  /// Show the ESC/Reset button
+  /// Show the Escape/reset action.
   #[serde(default = "default_true")]
   pub show_reset: bool,
 
-  /// Show the command button
+  /// Show the command action.
   #[serde(default = "default_true")]
   pub show_command: bool,
 
-  /// Show the session button
+  /// Show the session action.
   #[serde(default = "default_true")]
   pub show_session: bool,
 
-  /// Show the power button
+  /// Show the power action.
   #[serde(default = "default_true")]
   pub show_power: bool,
 
-  /// Show the background button
+  /// Show the background action.
   #[serde(default = "default_true")]
   pub show_background: bool,
 
-  /// Show the current session/command indicator
+  /// Show the current session or command.
   #[serde(default = "default_true")]
   pub show_session_status: bool,
 
-  /// Show the caps lock indicator
+  /// Show the Caps Lock indicator.
   #[serde(default = "default_true")]
   pub show_caps_lock: bool,
+
+  /// Show the password visibility action when it is bound.
+  #[serde(default = "default_true")]
+  pub show_password: bool,
 }
 
 impl Default for StatusBarConfig {
@@ -428,6 +547,7 @@ impl Default for StatusBarConfig {
       show_background:     default_true(),
       show_session_status: default_true(),
       show_caps_lock:      default_true(),
+      show_password:       default_true(),
     }
   }
 }
@@ -468,7 +588,416 @@ impl Default for PowerConfig {
   }
 }
 
-/// Keybindings configuration
+/// Action to apply after an inactivity timeout.
+#[derive(
+  Debug, Clone, Copy, Deserialize, Serialize, Default, PartialEq, Eq,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum IdleAction {
+  /// Clear the terminal surface until the next key press.
+  #[default]
+  Blank,
+  /// Freeze the animation while keeping the interface visible.
+  PauseAnimation,
+}
+
+/// Inactivity behavior. A zero timeout disables idle handling.
+#[derive(
+  Debug, Clone, Copy, Deserialize, Serialize, Default, PartialEq, Eq,
+)]
+pub struct IdleConfig {
+  /// Seconds without keyboard input before the action runs; zero disables it.
+  #[serde(default)]
+  pub timeout_seconds: u64,
+
+  /// Action applied after the timeout.
+  #[serde(default)]
+  pub action: IdleAction,
+}
+
+/// Built-in UI action available to configurable keybindings.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum BindingAction {
+  /// Open the command editor.
+  Command,
+  /// Open the session menu.
+  Sessions,
+  /// Open the power menu.
+  Power,
+  /// Open the background selector.
+  Background,
+  /// Reveal or mask an active secret prompt.
+  TogglePassword,
+}
+
+/// One terminal key used by an action binding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BindingKey {
+  /// One Unicode scalar value.
+  Character(char),
+  /// A function key in the range F1-F12.
+  Function(u8),
+  /// A supported named terminal key.
+  Named(NamedBindingKey),
+}
+
+/// Named terminal keys supported by action bindings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum NamedBindingKey {
+  /// Escape.
+  Escape,
+  /// Enter or Return.
+  Enter,
+  /// Tab.
+  Tab,
+  /// Reverse Tab.
+  BackTab,
+  /// Backspace.
+  Backspace,
+  /// Delete.
+  Delete,
+  /// Insert.
+  Insert,
+  /// Home.
+  Home,
+  /// End.
+  End,
+  /// Page Up.
+  PageUp,
+  /// Page Down.
+  PageDown,
+  /// Up arrow.
+  Up,
+  /// Down arrow.
+  Down,
+  /// Left arrow.
+  Left,
+  /// Right arrow.
+  Right,
+}
+
+const NAMED_KEY_LABELS: [&str; 15] = [
+  "Esc",
+  "Enter",
+  "Tab",
+  "BackTab",
+  "Backspace",
+  "Delete",
+  "Insert",
+  "Home",
+  "End",
+  "PageUp",
+  "PageDown",
+  "Up",
+  "Down",
+  "Left",
+  "Right",
+];
+
+const NAMED_KEY_ALIASES: &[(&str, NamedBindingKey)] = &[
+  ("esc", NamedBindingKey::Escape),
+  ("escape", NamedBindingKey::Escape),
+  ("enter", NamedBindingKey::Enter),
+  ("tab", NamedBindingKey::Tab),
+  ("backtab", NamedBindingKey::BackTab),
+  ("backspace", NamedBindingKey::Backspace),
+  ("delete", NamedBindingKey::Delete),
+  ("insert", NamedBindingKey::Insert),
+  ("home", NamedBindingKey::Home),
+  ("end", NamedBindingKey::End),
+  ("pageup", NamedBindingKey::PageUp),
+  ("pagedown", NamedBindingKey::PageDown),
+  ("up", NamedBindingKey::Up),
+  ("down", NamedBindingKey::Down),
+  ("left", NamedBindingKey::Left),
+  ("right", NamedBindingKey::Right),
+];
+
+impl NamedBindingKey {
+  const fn label(self) -> &'static str {
+    NAMED_KEY_LABELS[self as usize]
+  }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+struct BindingModifiers(u8);
+
+impl BindingModifiers {
+  const CONTROL: u8 = 1;
+  const ALT: u8 = 1 << 1;
+  const SHIFT: u8 = 1 << 2;
+
+  const fn insert(&mut self, modifier: u8) -> bool {
+    let inserted = self.0 & modifier == 0;
+    self.0 |= modifier;
+    inserted
+  }
+
+  const fn contains(self, modifier: u8) -> bool {
+    self.0 & modifier != 0
+  }
+
+  const fn remove(&mut self, modifier: u8) {
+    self.0 &= !modifier;
+  }
+
+  const fn is_empty(self) -> bool {
+    self.0 == 0
+  }
+}
+
+/// A validated terminal key chord used by a built-in action.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct KeyChord {
+  key:       BindingKey,
+  modifiers: BindingModifiers,
+}
+
+impl KeyChord {
+  /// Default chord used to reveal an active password prompt.
+  pub const DEFAULT_PASSWORD_TOGGLE: Self = Self {
+    key:       BindingKey::Function(7),
+    modifiers: BindingModifiers(0),
+  };
+
+  /// Creates an unmodified function-key chord when `number` is in `1..=12`.
+  #[must_use]
+  pub const fn function(number: u8) -> Option<Self> {
+    if number >= 1 && number <= 12 {
+      Some(Self {
+        key:       BindingKey::Function(number),
+        modifiers: BindingModifiers(0),
+      })
+    } else {
+      None
+    }
+  }
+
+  /// Returns the terminal key in this chord.
+  #[must_use]
+  pub const fn key(self) -> BindingKey {
+    self.key
+  }
+
+  /// Returns whether the chord contains Control.
+  #[must_use]
+  pub const fn control(self) -> bool {
+    self.modifiers.contains(BindingModifiers::CONTROL)
+  }
+
+  /// Returns whether the chord contains Alt.
+  #[must_use]
+  pub const fn alt(self) -> bool {
+    self.modifiers.contains(BindingModifiers::ALT)
+  }
+
+  /// Returns whether the chord contains Shift.
+  #[must_use]
+  pub const fn shift(self) -> bool {
+    self.modifiers.contains(BindingModifiers::SHIFT)
+  }
+}
+
+/// Error returned when a key chord string is malformed or unsupported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyChordParseError {
+  /// No key chord was provided.
+  Empty,
+  /// A leading, trailing, or repeated `+` created an empty segment.
+  EmptySegment,
+  /// A modifier appeared more than once, including through an alias.
+  DuplicateModifier,
+  /// More than one non-modifier key appeared.
+  MultipleKeys,
+  /// The chord contained modifiers but no key.
+  MissingKey,
+  /// The key name is not supported.
+  UnsupportedKey,
+  /// A function key was malformed or outside F1-F12.
+  InvalidFunctionKey,
+  /// An unmodified printable character would interfere with text entry.
+  UnmodifiedCharacter,
+}
+
+impl fmt::Display for KeyChordParseError {
+  fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    let message = match self {
+      Self::Empty => "key chord must not be empty",
+      Self::EmptySegment => "key chord contains an empty segment",
+      Self::DuplicateModifier => "key chord contains a duplicate modifier",
+      Self::MultipleKeys => "key chord must contain exactly one key",
+      Self::MissingKey => "key chord is missing its key",
+      Self::UnsupportedKey => "key chord contains an unsupported key",
+      Self::InvalidFunctionKey => "function key must be in the range F1-F12",
+      Self::UnmodifiedCharacter => {
+        "printable action keys require Control, Alt, or Shift"
+      },
+    };
+    formatter.write_str(message)
+  }
+}
+
+impl StdError for KeyChordParseError {}
+
+impl FromStr for KeyChord {
+  type Err = KeyChordParseError;
+
+  fn from_str(source: &str) -> Result<Self, Self::Err> {
+    if source.trim().is_empty() {
+      return Err(KeyChordParseError::Empty);
+    }
+    let (key, mut modifiers) = parse_chord_parts(source)?;
+    let key = match key {
+      BindingKey::Named(NamedBindingKey::Tab)
+        if modifiers.contains(BindingModifiers::SHIFT) =>
+      {
+        BindingKey::Named(NamedBindingKey::BackTab)
+      },
+      key => key,
+    };
+    if matches!(key, BindingKey::Named(NamedBindingKey::BackTab)) {
+      modifiers.remove(BindingModifiers::SHIFT);
+    }
+    if matches!(key, BindingKey::Character(_)) && modifiers.is_empty() {
+      return Err(KeyChordParseError::UnmodifiedCharacter);
+    }
+    Ok(Self { key, modifiers })
+  }
+}
+
+fn parse_chord_parts(
+  source: &str,
+) -> Result<(BindingKey, BindingModifiers), KeyChordParseError> {
+  let mut modifiers = BindingModifiers::default();
+  let mut key = None;
+  for part in source.split('+') {
+    let part = part.trim();
+    if part.is_empty() {
+      return Err(KeyChordParseError::EmptySegment);
+    }
+    if let Some(modifier) = parse_modifier(part) {
+      if !modifiers.insert(modifier) {
+        return Err(KeyChordParseError::DuplicateModifier);
+      }
+    } else if key.replace(parse_binding_key(part)?).is_some() {
+      return Err(KeyChordParseError::MultipleKeys);
+    }
+  }
+  Ok((key.ok_or(KeyChordParseError::MissingKey)?, modifiers))
+}
+
+impl fmt::Display for KeyChord {
+  fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    let mut first = true;
+    for (enabled, label) in [
+      (self.control(), "Ctrl"),
+      (self.alt(), "Alt"),
+      (self.shift(), "Shift"),
+    ] {
+      if enabled {
+        write_key_part(formatter, &mut first, label)?;
+      }
+    }
+    match self.key {
+      BindingKey::Character(character) => {
+        write_key_part(formatter, &mut first, character)
+      },
+      BindingKey::Function(number) => {
+        if !first {
+          formatter.write_str("+")?;
+        }
+        write!(formatter, "F{number}")
+      },
+      BindingKey::Named(key) => {
+        write_key_part(formatter, &mut first, key.label())
+      },
+    }
+  }
+}
+
+impl Serialize for KeyChord {
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+  where
+    S: Serializer,
+  {
+    serializer.collect_str(self)
+  }
+}
+
+impl<'de> Deserialize<'de> for KeyChord {
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+  where
+    D: Deserializer<'de>,
+  {
+    Cow::<'de, str>::deserialize(deserializer)?
+      .parse()
+      .map_err(DeserializeError::custom)
+  }
+}
+
+const fn parse_modifier(part: &str) -> Option<u8> {
+  if part.eq_ignore_ascii_case("ctrl") || part.eq_ignore_ascii_case("control") {
+    Some(BindingModifiers::CONTROL)
+  } else if part.eq_ignore_ascii_case("alt") {
+    Some(BindingModifiers::ALT)
+  } else if part.eq_ignore_ascii_case("shift") {
+    Some(BindingModifiers::SHIFT)
+  } else {
+    None
+  }
+}
+
+fn parse_binding_key(part: &str) -> Result<BindingKey, KeyChordParseError> {
+  if let Some(key) = NAMED_KEY_ALIASES
+    .iter()
+    .find_map(|(name, key)| part.eq_ignore_ascii_case(name).then_some(*key))
+  {
+    return Ok(BindingKey::Named(key));
+  }
+
+  if let Some(number) =
+    part.strip_prefix('f').or_else(|| part.strip_prefix('F'))
+  {
+    let number = number
+      .parse::<u8>()
+      .map_err(|_| KeyChordParseError::InvalidFunctionKey)?;
+    return KeyChord::function(number)
+      .map(|chord| chord.key)
+      .ok_or(KeyChordParseError::InvalidFunctionKey);
+  }
+
+  let mut characters = part.chars();
+  let character = characters
+    .next()
+    .filter(|_| characters.next().is_none())
+    .ok_or(KeyChordParseError::UnsupportedKey)?;
+  Ok(BindingKey::Character(character.to_ascii_lowercase()))
+}
+
+fn write_key_part(
+  formatter: &mut fmt::Formatter<'_>,
+  first: &mut bool,
+  part: impl fmt::Display,
+) -> fmt::Result {
+  if !*first {
+    formatter.write_str("+")?;
+  }
+  *first = false;
+  write!(formatter, "{part}")
+}
+
+/// A configurable key-to-action mapping.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ActionBindingConfig {
+  /// Validated terminal chord that triggers the action.
+  pub key:    KeyChord,
+  /// Built-in action triggered by the chord.
+  pub action: BindingAction,
+}
+
+/// Keybindings configuration.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct KeybindingsConfig {
   /// F-key for command menu (1-12)
@@ -486,6 +1015,11 @@ pub struct KeybindingsConfig {
   /// F-key for the on-the-fly background switcher menu (1-12)
   #[serde(default = "default_kb_background")]
   pub background: u8,
+
+  /// Additional or replacement built-in action bindings. Bindings here
+  /// override a default binding with the same key or action.
+  #[serde(default)]
+  pub actions: Vec<ActionBindingConfig>,
 }
 
 impl Default for KeybindingsConfig {
@@ -495,6 +1029,7 @@ impl Default for KeybindingsConfig {
       sessions:   default_kb_sessions(),
       power:      default_kb_power(),
       background: default_kb_background(),
+      actions:    Vec::new(),
     }
   }
 }
@@ -643,7 +1178,9 @@ pub enum SecretMode {
 }
 
 /// Widget position options
-#[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]
+#[derive(
+  Debug, Clone, Copy, Deserialize, Serialize, Default, PartialEq, Eq,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum WidgetPosition {
   #[default]
@@ -709,4 +1246,60 @@ const fn default_kb_power() -> u8 {
 
 const fn default_kb_background() -> u8 {
   4
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn key_chords_normalize_aliases_and_character_case()
+  -> Result<(), KeyChordParseError> {
+    let control: KeyChord = "Control + B".parse()?;
+    let ctrl: KeyChord = "ctrl+b".parse()?;
+    let backtab: KeyChord = "backtab".parse()?;
+    let shifted_tab: KeyChord = "shift+tab".parse()?;
+
+    assert_eq!(control, ctrl);
+    assert_eq!(control.to_string(), "Ctrl+b");
+    assert_eq!(backtab, shifted_tab);
+    assert_eq!(shifted_tab.to_string(), "BackTab");
+    Ok(())
+  }
+
+  #[test]
+  fn key_chords_reject_ambiguous_or_malformed_input() {
+    assert_eq!(
+      "ctrl++b".parse::<KeyChord>(),
+      Err(KeyChordParseError::EmptySegment)
+    );
+    assert_eq!(
+      "ctrl+control+b".parse::<KeyChord>(),
+      Err(KeyChordParseError::DuplicateModifier)
+    );
+    assert_eq!(
+      "F13".parse::<KeyChord>(),
+      Err(KeyChordParseError::InvalidFunctionKey)
+    );
+    assert_eq!(
+      "x".parse::<KeyChord>(),
+      Err(KeyChordParseError::UnmodifiedCharacter)
+    );
+  }
+
+  #[test]
+  fn key_chords_round_trip_through_toml() -> Result<(), Box<dyn StdError>> {
+    let config: KeybindingsConfig = toml::from_str(
+      r#"
+      [[actions]]
+      key = "shift+backtab"
+      action = "sessions"
+      "#,
+    )?;
+
+    let encoded = toml::to_string(&config)?;
+    let decoded: KeybindingsConfig = toml::from_str(&encoded)?;
+    assert_eq!(decoded, config);
+    Ok(())
+  }
 }
