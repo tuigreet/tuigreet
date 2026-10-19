@@ -1,6 +1,7 @@
 #[macro_use]
 mod macros;
 
+mod action;
 mod event;
 mod greeter;
 mod info;

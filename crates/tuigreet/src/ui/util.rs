@@ -6,6 +6,7 @@ use tui::{
   text::Text,
   widgets::{Paragraph, Wrap},
 };
+use tuigreet_config::PromptAnchor;
 use tuigreet_types::Mode;
 
 use crate::Greeter;
@@ -14,25 +15,22 @@ pub fn titleize(message: &str) -> String {
   format!(" {message} ")
 }
 
-pub fn buttonize(message: &str) -> String {
-  format!(" {message}")
-}
-
-// Determinew whether the cursor should be shown or hidden from the current
-// mode and configuration. Usually, we will show the cursor only when expecting
-// text entries from the user.
-pub fn should_hide_cursor(greeter: &Greeter) -> bool {
-  greeter.working
-    || greeter.done
-    || (greeter.user_menu
-      && greeter.mode == Mode::Username
-      && greeter.username.value.is_empty())
-    || (greeter.mode == Mode::Password && greeter.prompt.is_none())
-    || greeter.mode == Mode::Users
-    || greeter.mode == Mode::Sessions
-    || greeter.mode == Mode::Power
-    || greeter.mode == Mode::Processing
-    || greeter.mode == Mode::Action
+// Determines whether the cursor should be hidden. The cursor is visible only
+// while the greeter expects text input.
+pub const fn should_hide_cursor(greeter: &Greeter) -> bool {
+  if greeter.is_idle() || greeter.working || greeter.done {
+    return true;
+  }
+  match greeter.mode {
+    Mode::Username => greeter.user_menu && greeter.username.value.is_empty(),
+    Mode::Password => greeter.prompt.is_none(),
+    Mode::Users
+    | Mode::Sessions
+    | Mode::Power
+    | Mode::Processing
+    | Mode::Action => true,
+    Mode::Command | Mode::Background => false,
+  }
 }
 
 // Computes the height of the main window where we display content, depending on
@@ -90,40 +88,74 @@ pub fn get_rect_bounds(
   area: Rect,
   items: usize,
 ) -> (u16, u16, u16, u16) {
-  let width = greeter.width().min(area.width);
+  let prompt_layout = greeter
+    .loaded_config
+    .as_ref()
+    .map(|config| &config.layout.prompt);
+  let edge_margin = prompt_layout.map_or(0, |layout| layout.edge_margin);
+  let margin_x = edge_margin.min(area.width.saturating_sub(1) / 2);
+  let margin_y = edge_margin.min(area.height.saturating_sub(1) / 2);
+  let usable = Rect::new(
+    area.x.saturating_add(margin_x),
+    area.y.saturating_add(margin_y),
+    area.width.saturating_sub(margin_x.saturating_mul(2)),
+    area.height.saturating_sub(margin_y.saturating_mul(2)),
+  );
+
+  let width = greeter.width().min(usable.width);
   let box_height = get_height(greeter)
     .saturating_add(u16::try_from(items).unwrap_or(u16::MAX))
-    .min(area.height);
+    .min(usable.height);
 
   // Account for the message area rendered below the container so that the
-  // combined block (box + message) is centered rather than just the box.
+  // combined block is positioned as one unit.
   let (_, message_height) =
     get_message_height(greeter, greeter.container_padding(), 0);
-  let total_height = box_height.saturating_add(message_height);
+  let total_height =
+    box_height.saturating_add(message_height).min(usable.height);
+  let anchor =
+    prompt_layout.map_or(PromptAnchor::Center, |layout| layout.anchor);
 
-  let x = if width < area.width {
-    (area.width - width) / 2
-  } else {
-    0
+  let horizontal_space = usable.width.saturating_sub(width);
+  let vertical_space = usable.height.saturating_sub(total_height);
+  let anchored_x = match anchor {
+    PromptAnchor::TopLeft
+    | PromptAnchor::CenterLeft
+    | PromptAnchor::BottomLeft => usable.x,
+    PromptAnchor::TopCenter
+    | PromptAnchor::Center
+    | PromptAnchor::BottomCenter => {
+      usable.x.saturating_add(horizontal_space / 2)
+    },
+    PromptAnchor::TopRight
+    | PromptAnchor::CenterRight
+    | PromptAnchor::BottomRight => usable.x.saturating_add(horizontal_space),
   };
-  let y = if total_height < area.height {
-    (area.height - total_height) / 2
-  } else {
-    0
+  let anchored_y = match anchor {
+    PromptAnchor::TopLeft
+    | PromptAnchor::TopCenter
+    | PromptAnchor::TopRight => usable.y,
+    PromptAnchor::CenterLeft
+    | PromptAnchor::Center
+    | PromptAnchor::CenterRight => usable.y.saturating_add(vertical_space / 2),
+    PromptAnchor::BottomLeft
+    | PromptAnchor::BottomCenter
+    | PromptAnchor::BottomRight => usable.y.saturating_add(vertical_space),
   };
 
-  let (x, width) = if (x + width) >= area.width {
-    (0, area.width)
-  } else {
-    (x, width)
-  };
-  let (y, box_height) = if y.saturating_add(total_height) >= area.height {
-    (0, box_height.min(area.height))
-  } else {
-    (y, box_height)
-  };
+  let offset_x = prompt_layout.map_or(0, |layout| layout.offset_x);
+  let offset_y = prompt_layout.map_or(0, |layout| layout.offset_y);
+  let max_x = usable.x.saturating_add(horizontal_space);
+  let max_y = usable.y.saturating_add(vertical_space);
+  let x = offset_coordinate(anchored_x, offset_x, usable.x, max_x);
+  let y = offset_coordinate(anchored_y, offset_y, usable.y, max_y);
 
   (x, y, width, box_height)
+}
+
+fn offset_coordinate(base: u16, offset: i16, min: u16, max: u16) -> u16 {
+  let shifted = i32::from(base) + i32::from(offset);
+  u16::try_from(shifted.clamp(i32::from(min), i32::from(max))).unwrap_or(min)
 }
 
 // Computes the size of a text entry, from the container width and, if

@@ -3,6 +3,7 @@ use std::io;
 use crossterm::event::{KeyCode, KeyModifiers};
 use libgreetd_stub::SessionOptions;
 use tokio::task::spawn;
+use tuigreet_config::KeybindingsConfig;
 
 use super::common::IntegrationRunner;
 use crate::{
@@ -47,9 +48,12 @@ async fn menus_labels_with_custom_bindings() -> io::Result<()> {
   let runner = IntegrationRunner::new(
     opts,
     Some(|greeter| {
-      greeter.kb_command = 11;
-      greeter.kb_sessions = 1;
-      greeter.kb_power = 6;
+      greeter.set_keybindings(&KeybindingsConfig {
+        command: 11,
+        sessions: 1,
+        power: 6,
+        ..KeybindingsConfig::default()
+      });
     }),
   )?;
 
