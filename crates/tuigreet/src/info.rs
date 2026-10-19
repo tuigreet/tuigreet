@@ -1,8 +1,8 @@
 use std::{
   env,
   error::Error,
-  fs::{self, File},
-  io::{self, BufRead, BufReader},
+  fs,
+  io,
   path::{Path, PathBuf},
   process::Command,
   sync::{Mutex, OnceLock, PoisonError},
@@ -28,10 +28,6 @@ const LAST_USER_USERNAME: &str = "/var/cache/tuigreet/lastuser";
 const LAST_USER_NAME: &str = "/var/cache/tuigreet/lastuser-name";
 const LAST_COMMAND: &str = "/var/cache/tuigreet/lastsession";
 const LAST_SESSION: &str = "/var/cache/tuigreet/lastsession-path";
-
-/// Default UID range for user menu
-const DEFAULT_MIN_UID: u32 = 1000;
-const DEFAULT_MAX_UID: u32 = 60000;
 
 static XDG_DATA_DIRS: OnceLock<Vec<PathBuf>> = OnceLock::new();
 static DEFAULT_SESSION_PATHS: OnceLock<Vec<(PathBuf, SessionType)>> =
@@ -260,43 +256,6 @@ pub fn get_users(min_uid: u32, max_uid: u32) -> Vec<User> {
     .collect();
   drop(enumeration);
   result
-}
-
-pub fn get_min_max_uids(
-  min_uid: Option<u32>,
-  max_uid: Option<u32>,
-) -> (u32, u32) {
-  if let (Some(min_uid), Some(max_uid)) = (min_uid, max_uid) {
-    return (min_uid, max_uid);
-  }
-
-  let overrides = (min_uid, max_uid);
-  let default = (
-    min_uid.unwrap_or(DEFAULT_MIN_UID),
-    max_uid.unwrap_or(DEFAULT_MAX_UID),
-  );
-
-  File::open("/etc/login.defs").map_or(default, |file| {
-    let file = BufReader::new(file);
-
-    let uids: (u32, u32) = file.lines().fold(default, |acc, line| {
-      line.map_or(acc, |line| {
-        let mut tokens = line.split_whitespace();
-
-        match (overrides, tokens.next(), tokens.next()) {
-          ((None, _), Some("UID_MIN"), Some(value)) => {
-            (value.parse::<u32>().unwrap_or(acc.0), acc.1)
-          },
-          ((_, None), Some("UID_MAX"), Some(value)) => {
-            (acc.0, value.parse::<u32>().unwrap_or(acc.1))
-          },
-          _ => acc,
-        }
-      })
-    });
-
-    uids
-  })
 }
 
 pub fn get_sessions(greeter: &Greeter) -> Vec<Session> {

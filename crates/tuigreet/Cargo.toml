@@ -30,7 +30,6 @@ chrono             = { workspace = true }
 crossterm          = { workspace = true }
 dirs               = { workspace = true }
 futures            = { workspace = true }
-getopts            = { workspace = true }
 greetd_ipc         = { workspace = true }
 i18n-embed         = { workspace = true }
 nix                = { workspace = true }

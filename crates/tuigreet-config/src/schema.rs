@@ -1,5 +1,6 @@
 use std::{borrow::Cow, error::Error as StdError, fmt, str::FromStr};
 
+use pound::ValueEnum;
 use serde::{
   Deserialize,
   Deserializer,
@@ -216,7 +217,7 @@ impl Default for SessionConfig {
 }
 
 /// Display and visual configuration
-#[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[expect(
   clippy::struct_excessive_bools,
   reason = "Independent user-configurable display toggles form the serialized \
@@ -258,6 +259,22 @@ pub struct DisplayConfig {
   /// Greeting text alignment
   #[serde(default)]
   pub align_greeting: AlignGreeting,
+}
+
+impl Default for DisplayConfig {
+  fn default() -> Self {
+    Self {
+      asterisks:      None,
+      show_time:      false,
+      time_format:    None,
+      greeting:       None,
+      show_title:     default_show_title(),
+      custom_title:   None,
+      issue:          false,
+      battery:        false,
+      align_greeting: AlignGreeting::default(),
+    }
+  }
 }
 
 /// Remember/cache configuration
@@ -1159,8 +1176,11 @@ pub struct MatrixConfig {
 }
 
 /// Greeting alignment options
-#[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]
+#[derive(
+  Debug, Clone, Deserialize, Serialize, ValueEnum, Default, PartialEq, Eq,
+)]
 #[serde(rename_all = "snake_case")]
+#[pound(ignore_case)]
 pub enum AlignGreeting {
   Left,
   #[default]
@@ -1169,19 +1189,24 @@ pub enum AlignGreeting {
 }
 
 /// Secret display modes
-#[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]
+#[derive(
+  Debug, Clone, Deserialize, Serialize, ValueEnum, Default, PartialEq, Eq,
+)]
 #[serde(rename_all = "snake_case")]
+#[pound(ignore_case)]
 pub enum SecretMode {
   #[default]
   Hidden,
+  #[pound(alias = "character")]
   Characters,
 }
 
 /// Widget position options
 #[derive(
-  Debug, Clone, Copy, Deserialize, Serialize, Default, PartialEq, Eq,
+  Debug, Clone, Copy, Deserialize, Serialize, ValueEnum, Default, PartialEq, Eq,
 )]
 #[serde(rename_all = "snake_case")]
+#[pound(ignore_case)]
 pub enum WidgetPosition {
   #[default]
   Default,

@@ -493,6 +493,7 @@ mod test {
 
   use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
   use tokio::sync::RwLock;
+  use tuigreet_config::Config;
   use tuigreet_types::Mode;
 
   use super::{delete_key, handle, insert_key};
@@ -790,15 +791,11 @@ mod test {
 
     {
       let mut greeter = greeter.write().await;
-      greeter.parse_options(&[
-        "tuigreet",
-        "--kb-command",
-        "3",
-        "--kb-sessions",
-        "1",
-        "--kb-power",
-        "11",
-      ])?;
+      let mut config = Config::default();
+      config.keybindings.command = 3;
+      config.keybindings.sessions = 1;
+      config.keybindings.power = 11;
+      greeter.apply_config(config);
       greeter.sessions.options.push(Session::default());
       greeter.powers.options.push(Power {
         action: PowerOption::Shutdown,

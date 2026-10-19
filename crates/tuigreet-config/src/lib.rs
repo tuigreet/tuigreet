@@ -1,93 +1,56 @@
-pub mod env;
+pub mod cli;
 pub mod parser;
 pub mod schema;
 
-use std::{error::Error, fmt, io, path::PathBuf};
+use std::{io, path::PathBuf};
 
 pub use schema::*;
 use toml::de::Error as TomlError;
 
-/// Errors that can occur during configuration loading or validation
-#[derive(Debug)]
+/// Errors that can occur during configuration loading or validation.
+#[derive(Debug, flub::Error)]
 pub enum ConfigError {
-  /// I/O error when reading config files
-  Io(io::Error),
+  /// I/O error when reading config files.
+  #[error("I/O error: {0}")]
+  Io(#[from] io::Error),
 
-  /// TOML parsing error
-  Parse(TomlError),
+  /// TOML parsing error.
+  #[error("TOML parse error: {0}")]
+  Parse(#[from] TomlError),
 
-  /// TOML parsing error with file context (rendered via codespan)
-  ParseWithContext { source: String },
-  /// General validation error with description
+  /// TOML parsing error with file context (rendered via codespan).
+  #[error("{message}")]
+  ParseWithContext { message: String },
+
+  /// General validation error with description.
+  #[error("Validation error: {0}")]
   Validation(String),
 
-  /// Two options that cannot be used together
+  /// Two options that cannot be used together.
+  #[error("Options '{0}' and '{1}' are mutually exclusive")]
   MutuallyExclusive(String, String),
 
-  /// Option that depends on another option
+  /// Option that depends on another option.
+  #[error("Dependency error: {0}")]
   Dependency(String),
 
-  /// Invalid range (e.g., `min_uid` >= `max_uid`)
+  /// Invalid range (e.g., `min_uid` >= `max_uid`).
+  #[error("Invalid range: {0}")]
   InvalidRange(String),
 
-  /// Duplicate keybindings
+  /// Duplicate keybindings.
+  #[error("Duplicate keybindings detected")]
   DuplicateKeybindings,
 
-  /// Invalid F-key value
+  /// Invalid F-key value.
+  #[error("Invalid F-key value for '{0}': F{1} (must be F1-F12)")]
   InvalidFKey(String, u8),
 
-  /// Invalid time format string
+  /// Invalid time format string.
+  #[error("Invalid time format string")]
   InvalidTimeFormat,
 
-  /// Session wrapper executable not found
+  /// Session wrapper executable not found.
+  #[error("Session wrapper executable not found: {0}")]
   WrapperExecutableNotFound(PathBuf),
-}
-
-impl fmt::Display for ConfigError {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match self {
-      Self::Io(err) => write!(f, "I/O error: {err}"),
-      Self::Parse(err) => write!(f, "TOML parse error: {err}"),
-      Self::ParseWithContext { source } => {
-        write!(f, "{source}")
-      },
-      Self::Validation(msg) => write!(f, "Validation error: {msg}"),
-      Self::MutuallyExclusive(opt1, opt2) => {
-        write!(f, "Options '{opt1}' and '{opt2}' are mutually exclusive")
-      },
-      Self::Dependency(msg) => write!(f, "Dependency error: {msg}"),
-      Self::InvalidRange(msg) => write!(f, "Invalid range: {msg}"),
-      Self::DuplicateKeybindings => {
-        write!(f, "Duplicate keybindings detected")
-      },
-      Self::InvalidFKey(name, key) => {
-        write!(
-          f,
-          "Invalid F-key value for '{name}': F{key} (must be F1-F12)"
-        )
-      },
-      Self::InvalidTimeFormat => write!(f, "Invalid time format string"),
-      Self::WrapperExecutableNotFound(path) => {
-        write!(
-          f,
-          "Session wrapper executable not found: {}",
-          path.display()
-        )
-      },
-    }
-  }
-}
-
-impl Error for ConfigError {}
-
-impl From<io::Error> for ConfigError {
-  fn from(err: io::Error) -> Self {
-    Self::Io(err)
-  }
-}
-
-impl From<TomlError> for ConfigError {
-  fn from(err: TomlError) -> Self {
-    Self::Parse(err)
-  }
 }

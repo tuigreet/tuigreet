@@ -13,7 +13,10 @@ workspace = true
 chrono             = { workspace = true }
 codespan-reporting = { workspace = true }
 dirs               = { workspace = true }
-getopts            = { workspace = true }
+flub               = { workspace = true }
+pound              = { workspace = true }
 serde              = { workspace = true }
 toml               = { workspace = true }
-tracing            = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

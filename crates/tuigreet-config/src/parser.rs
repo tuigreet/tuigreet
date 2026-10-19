@@ -15,423 +15,39 @@ use codespan_reporting::{
 use dirs::config_dir;
 use toml::de::Error as TomlError;
 
-use crate::{
-  AlignGreeting,
-  Config,
-  ConfigError,
-  SecretMode,
-  env::load_env_variables,
-};
+use crate::{Config, ConfigError, SecretMode, cli::Cli};
 
-/// Loads the effective configuration from files, environment, and CLI options.
+/// A validated effective configuration and its non-fatal warnings.
+#[derive(Debug)]
+pub struct LoadedConfig {
+  pub config:   Config,
+  pub warnings: Vec<String>,
+}
+
+/// Load and validate the effective configuration selected by `cli`.
 ///
-/// Without an explicit path, system and user files are layered over defaults.
-/// An explicit path replaces those file layers. Environment variables and CLI
-/// options are always applied last.
-///
-/// # Arguments
-///
-/// * `cli_config_path` - An optional configuration file. When present, it
-///   replaces the system and user file layers.
-/// * `cli_matches` - Optional parsed command-line options to apply after all
-///   other configuration sources.
-///
-/// # Returns
-///
-/// The effective configuration after applying the selected file layers,
-/// environment variables, and command-line options.
+/// System and user files are layered over defaults unless an explicit path is
+/// selected. Environment and command-line overrides are then applied from the
+/// same typed source, with command-line values taking precedence.
 ///
 /// # Errors
-///
-/// Returns an error if a selected configuration file cannot be read or parsed.
-pub fn load_config(
-  cli_config_path: Option<&Path>,
-  cli_matches: Option<&getopts::Matches>,
-) -> Result<Config, ConfigError> {
-  let mut config = if let Some(path) = cli_config_path {
+/// Returns an error when a selected file cannot be read or parsed, an override
+/// is malformed, or the resulting configuration is invalid.
+pub fn load_config(cli: &Cli) -> Result<LoadedConfig, ConfigError> {
+  let mut config = if cli.no_config {
+    let mut config = Config::default();
+    apply_system_uid_defaults(&mut config, (false, false));
+    config
+  } else if let Some(path) = cli.config_path() {
     load_config_from_path(path)?
   } else {
     load_default_file_layers()?
   };
 
-  let env_vars = load_env_variables();
-  apply_config_layer(&mut config, env_vars);
-
-  if let Some(cli) = cli_matches {
-    let cli_config = extract_cli_config(cli);
-    apply_config_layer(&mut config, cli_config);
-  }
-
+  cli.apply_to(&mut config)?;
   normalize_legacy_asterisks(&mut config);
-  Ok(config)
-}
-
-/// Merges src into dest, only overwriting fields that differ from their
-/// defaults. Used for layering: defaults -> system -> user -> env -> CLI
-fn apply_config_layer(dest: &mut Config, src: Config) {
-  let defaults = Config::default();
-
-  // General
-  if src.general.debug != defaults.general.debug {
-    dest.general.debug = src.general.debug;
-  }
-  if src.general.log_file != defaults.general.log_file {
-    dest.general.log_file = src.general.log_file;
-  }
-  if src.general.numlock != defaults.general.numlock {
-    dest.general.numlock = src.general.numlock;
-  }
-
-  // Session
-  if src.session.command != defaults.session.command {
-    dest.session.command = src.session.command;
-  }
-  if src.session.sessions_dirs != defaults.session.sessions_dirs {
-    dest.session.sessions_dirs = src.session.sessions_dirs;
-  }
-  if src.session.xsessions_dirs != defaults.session.xsessions_dirs {
-    dest.session.xsessions_dirs = src.session.xsessions_dirs;
-  }
-  if src.session.session_wrapper != defaults.session.session_wrapper {
-    dest.session.session_wrapper = src.session.session_wrapper;
-  }
-  if src.session.xsession_wrapper != defaults.session.xsession_wrapper {
-    dest.session.xsession_wrapper = src.session.xsession_wrapper;
-  }
-  if src.session.environments != defaults.session.environments {
-    dest.session.environments = src.session.environments;
-  }
-  if src.session.default_session != defaults.session.default_session {
-    dest.session.default_session = src.session.default_session;
-  }
-
-  // Display
-  if src.display.show_time != defaults.display.show_time {
-    dest.display.show_time = src.display.show_time;
-  }
-  if src.display.time_format != defaults.display.time_format {
-    dest.display.time_format = src.display.time_format;
-  }
-  if src.display.greeting != defaults.display.greeting {
-    dest.display.greeting = src.display.greeting;
-  }
-  if src.display.show_title != defaults.display.show_title {
-    dest.display.show_title = src.display.show_title;
-  }
-  if src.display.custom_title != defaults.display.custom_title {
-    dest.display.custom_title = src.display.custom_title;
-  }
-  if src.display.issue != defaults.display.issue {
-    dest.display.issue = src.display.issue;
-  }
-  if src.display.battery != defaults.display.battery {
-    dest.display.battery = src.display.battery;
-  }
-  if src.display.align_greeting != defaults.display.align_greeting {
-    dest.display.align_greeting = src.display.align_greeting;
-  }
-
-  // Remember
-  if src.remember.default_user != defaults.remember.default_user {
-    dest.remember.default_user = src.remember.default_user;
-  }
-  if src.remember.username != defaults.remember.username {
-    dest.remember.username = src.remember.username;
-  }
-  if src.remember.session != defaults.remember.session {
-    dest.remember.session = src.remember.session;
-  }
-  if src.remember.user_session != defaults.remember.user_session {
-    dest.remember.user_session = src.remember.user_session;
-  }
-
-  // User menu
-  if src.user_menu.enabled != defaults.user_menu.enabled {
-    dest.user_menu.enabled = src.user_menu.enabled;
-  }
-  if src.user_menu.min_uid != defaults.user_menu.min_uid {
-    dest.user_menu.min_uid = src.user_menu.min_uid;
-  }
-  if src.user_menu.max_uid != defaults.user_menu.max_uid {
-    dest.user_menu.max_uid = src.user_menu.max_uid;
-  }
-
-  // Secret
-  if src.display.asterisks.is_some() {
-    dest.display.asterisks = src.display.asterisks;
-  }
-  if src.secret_mode_specified || src.secret.mode != defaults.secret.mode {
-    dest.secret.mode = src.secret.mode;
-    dest.secret_mode_specified = true;
-  } else if let Some(asterisks) = src.display.asterisks {
-    dest.secret.mode = legacy_secret_mode(asterisks);
-  }
-  if src.secret.characters != defaults.secret.characters {
-    dest.secret.characters = src.secret.characters;
-  }
-
-  // Layout
-  if src.layout.width != defaults.layout.width {
-    dest.layout.width = src.layout.width;
-  }
-  if src.layout.window_padding != defaults.layout.window_padding {
-    dest.layout.window_padding = src.layout.window_padding;
-  }
-  if src.layout.container_padding != defaults.layout.container_padding {
-    dest.layout.container_padding = src.layout.container_padding;
-  }
-  if src.layout.prompt_padding != defaults.layout.prompt_padding {
-    dest.layout.prompt_padding = src.layout.prompt_padding;
-  }
-  merge_nondefault(
-    &mut dest.layout.prompt.anchor,
-    src.layout.prompt.anchor,
-    &defaults.layout.prompt.anchor,
-  );
-  merge_nondefault(
-    &mut dest.layout.prompt.offset_x,
-    src.layout.prompt.offset_x,
-    &defaults.layout.prompt.offset_x,
-  );
-  merge_nondefault(
-    &mut dest.layout.prompt.offset_y,
-    src.layout.prompt.offset_y,
-    &defaults.layout.prompt.offset_y,
-  );
-  merge_nondefault(
-    &mut dest.layout.prompt.edge_margin,
-    src.layout.prompt.edge_margin,
-    &defaults.layout.prompt.edge_margin,
-  );
-  merge_nondefault(
-    &mut dest.layout.widgets.time_position,
-    src.layout.widgets.time_position,
-    &defaults.layout.widgets.time_position,
-  );
-  merge_nondefault(
-    &mut dest.layout.widgets.status_position,
-    src.layout.widgets.status_position,
-    &defaults.layout.widgets.status_position,
-  );
-  merge_nondefault(
-    &mut dest.layout.widgets.battery_position,
-    src.layout.widgets.battery_position,
-    &defaults.layout.widgets.battery_position,
-  );
-  merge_nonempty(
-    &mut dest.layout.widgets.regions.top_left,
-    src.layout.widgets.regions.top_left,
-  );
-  merge_nonempty(
-    &mut dest.layout.widgets.regions.top_right,
-    src.layout.widgets.regions.top_right,
-  );
-  merge_nonempty(
-    &mut dest.layout.widgets.regions.bottom_left,
-    src.layout.widgets.regions.bottom_left,
-  );
-  merge_nonempty(
-    &mut dest.layout.widgets.regions.bottom_right,
-    src.layout.widgets.regions.bottom_right,
-  );
-
-  // Status bar item visibility
-  merge_nondefault(
-    &mut dest.layout.widgets.status_bar.show_reset,
-    src.layout.widgets.status_bar.show_reset,
-    &defaults.layout.widgets.status_bar.show_reset,
-  );
-  merge_nondefault(
-    &mut dest.layout.widgets.status_bar.show_command,
-    src.layout.widgets.status_bar.show_command,
-    &defaults.layout.widgets.status_bar.show_command,
-  );
-  merge_nondefault(
-    &mut dest.layout.widgets.status_bar.show_session,
-    src.layout.widgets.status_bar.show_session,
-    &defaults.layout.widgets.status_bar.show_session,
-  );
-  merge_nondefault(
-    &mut dest.layout.widgets.status_bar.show_power,
-    src.layout.widgets.status_bar.show_power,
-    &defaults.layout.widgets.status_bar.show_power,
-  );
-  merge_nondefault(
-    &mut dest.layout.widgets.status_bar.show_background,
-    src.layout.widgets.status_bar.show_background,
-    &defaults.layout.widgets.status_bar.show_background,
-  );
-  merge_nondefault(
-    &mut dest.layout.widgets.status_bar.show_session_status,
-    src.layout.widgets.status_bar.show_session_status,
-    &defaults.layout.widgets.status_bar.show_session_status,
-  );
-  merge_nondefault(
-    &mut dest.layout.widgets.status_bar.show_caps_lock,
-    src.layout.widgets.status_bar.show_caps_lock,
-    &defaults.layout.widgets.status_bar.show_caps_lock,
-  );
-  merge_nondefault(
-    &mut dest.layout.widgets.status_bar.show_password,
-    src.layout.widgets.status_bar.show_password,
-    &defaults.layout.widgets.status_bar.show_password,
-  );
-
-  // Power
-  if src.power.shutdown != defaults.power.shutdown {
-    dest.power.shutdown = src.power.shutdown;
-  }
-  if src.power.reboot != defaults.power.reboot {
-    dest.power.reboot = src.power.reboot;
-  }
-  if src.power.suspend != defaults.power.suspend {
-    dest.power.suspend = src.power.suspend;
-  }
-  if src.power.hibernate != defaults.power.hibernate {
-    dest.power.hibernate = src.power.hibernate;
-  }
-  if src.power.use_setsid != defaults.power.use_setsid {
-    dest.power.use_setsid = src.power.use_setsid;
-  }
-
-  // Idle behavior
-  merge_nondefault(
-    &mut dest.idle.timeout_seconds,
-    src.idle.timeout_seconds,
-    &defaults.idle.timeout_seconds,
-  );
-  merge_nondefault(
-    &mut dest.idle.action,
-    src.idle.action,
-    &defaults.idle.action,
-  );
-
-  // Keybindings
-  merge_nondefault(
-    &mut dest.keybindings.command,
-    src.keybindings.command,
-    &defaults.keybindings.command,
-  );
-  merge_nondefault(
-    &mut dest.keybindings.sessions,
-    src.keybindings.sessions,
-    &defaults.keybindings.sessions,
-  );
-  merge_nondefault(
-    &mut dest.keybindings.power,
-    src.keybindings.power,
-    &defaults.keybindings.power,
-  );
-  merge_nondefault(
-    &mut dest.keybindings.background,
-    src.keybindings.background,
-    &defaults.keybindings.background,
-  );
-  merge_nonempty(&mut dest.keybindings.actions, src.keybindings.actions);
-
-  // Background animation
-  if src.background.kind.is_some() {
-    dest.background.kind = src.background.kind;
-  }
-  if src.background.fps.is_some() {
-    dest.background.fps = src.background.fps;
-  }
-  if src.background.doom.height.is_some() {
-    dest.background.doom.height = src.background.doom.height;
-  }
-  if src.background.doom.spread.is_some() {
-    dest.background.doom.spread = src.background.doom.spread;
-  }
-  if src.background.doom.top_color.is_some() {
-    dest.background.doom.top_color = src.background.doom.top_color;
-  }
-  if src.background.doom.middle_color.is_some() {
-    dest.background.doom.middle_color = src.background.doom.middle_color;
-  }
-  if src.background.doom.bottom_color.is_some() {
-    dest.background.doom.bottom_color = src.background.doom.bottom_color;
-  }
-  if src.background.matrix.head_color.is_some() {
-    dest.background.matrix.head_color = src.background.matrix.head_color;
-  }
-  if src.background.matrix.bright_color.is_some() {
-    dest.background.matrix.bright_color = src.background.matrix.bright_color;
-  }
-  if src.background.matrix.dim_color.is_some() {
-    dest.background.matrix.dim_color = src.background.matrix.dim_color;
-  }
-  if src.background.matrix.min_length.is_some() {
-    dest.background.matrix.min_length = src.background.matrix.min_length;
-  }
-  if src.background.matrix.max_length.is_some() {
-    dest.background.matrix.max_length = src.background.matrix.max_length;
-  }
-  if src.background.matrix.min_speed.is_some() {
-    dest.background.matrix.min_speed = src.background.matrix.min_speed;
-  }
-  if src.background.matrix.max_speed.is_some() {
-    dest.background.matrix.max_speed = src.background.matrix.max_speed;
-  }
-  if src.background.matrix.mutate_chance.is_some() {
-    dest.background.matrix.mutate_chance = src.background.matrix.mutate_chance;
-  }
-
-  // Outputs: a non-empty list from a higher-priority layer fully replaces
-  if !src.outputs.is_empty() {
-    dest.outputs = src.outputs;
-  }
-
-  // Terminal: replace individual fields only if source specifies them
-  if src.terminal.cols.is_some() {
-    dest.terminal.cols = src.terminal.cols;
-  }
-  if src.terminal.rows.is_some() {
-    dest.terminal.rows = src.terminal.rows;
-  }
-
-  // Theme: all fields are Option<String>, default is None
-  if src.theme.border.is_some() {
-    dest.theme.border = src.theme.border;
-  }
-  if src.theme.text.is_some() {
-    dest.theme.text = src.theme.text;
-  }
-  if src.theme.time.is_some() {
-    dest.theme.time = src.theme.time;
-  }
-  if src.theme.container.is_some() {
-    dest.theme.container = src.theme.container;
-  }
-  if src.theme.title.is_some() {
-    dest.theme.title = src.theme.title;
-  }
-  if src.theme.greet.is_some() {
-    dest.theme.greet = src.theme.greet;
-  }
-  if src.theme.prompt.is_some() {
-    dest.theme.prompt = src.theme.prompt;
-  }
-  if src.theme.input.is_some() {
-    dest.theme.input = src.theme.input;
-  }
-  if src.theme.action.is_some() {
-    dest.theme.action = src.theme.action;
-  }
-  if src.theme.button.is_some() {
-    dest.theme.button = src.theme.button;
-  }
-}
-
-fn merge_nondefault<T: PartialEq>(dest: &mut T, source: T, default: &T) {
-  if &source != default {
-    *dest = source;
-  }
-}
-
-fn merge_nonempty<T>(dest: &mut Vec<T>, source: Vec<T>) {
-  if !source.is_empty() {
-    *dest = source;
-  }
+  let warnings = config.validate(false)?;
+  Ok(LoadedConfig { config, warnings })
 }
 
 /// Load configuration from a specific path.
@@ -441,19 +57,18 @@ fn merge_nonempty<T>(dest: &mut Vec<T>, source: Vec<T>) {
 /// Returns error if file cannot be read or contains invalid TOML
 fn load_config_from_path(path: &Path) -> Result<Config, ConfigError> {
   let content = fs::read_to_string(path)?;
-  match toml::from_str::<Config>(&content) {
-    Ok(mut config) => {
-      config.secret_mode_specified = toml::from_str::<toml::Table>(&content)
-        .is_ok_and(|table| {
-          table
-            .get("secret")
-            .and_then(toml::Value::as_table)
-            .is_some_and(|secret| secret.contains_key("mode"))
-        });
-      Ok(config)
-    },
-    Err(e) => Err(toml_error(path, &content, e)),
-  }
+  let table = toml::from_str::<toml::Table>(&content)
+    .map_err(|error| toml_error(path, &content, error))?;
+  let explicit_uids = explicit_uid_bounds(&table);
+  let secret_mode_specified = table
+    .get("secret")
+    .and_then(toml::Value::as_table)
+    .is_some_and(|secret| secret.contains_key("mode"));
+  let mut config = toml::from_str::<Config>(&content)
+    .map_err(|error| toml_error(path, &content, error))?;
+  config.secret_mode_specified = secret_mode_specified;
+  apply_system_uid_defaults(&mut config, explicit_uids);
+  Ok(config)
 }
 
 /// Load system and user config as TOML tables before deserializing them.
@@ -476,6 +91,7 @@ fn load_default_file_layers() -> Result<Config, ConfigError> {
     merge_toml_tables(&mut merged, table);
   }
 
+  let explicit_uids = explicit_uid_bounds(&merged);
   let config_value = toml::Value::Table(merged);
   let secret_mode_specified = config_value
     .get("secret")
@@ -483,6 +99,7 @@ fn load_default_file_layers() -> Result<Config, ConfigError> {
     .is_some_and(|secret| secret.contains_key("mode"));
   let mut config: Config = config_value.try_into()?;
   config.secret_mode_specified = secret_mode_specified;
+  apply_system_uid_defaults(&mut config, explicit_uids);
   Ok(config)
 }
 
@@ -497,6 +114,63 @@ fn merge_toml_tables(dest: &mut toml::Table, src: toml::Table) {
       },
     }
   }
+}
+
+const DEFAULT_MIN_UID: u32 = 1000;
+const DEFAULT_MAX_UID: u32 = 60000;
+
+fn explicit_uid_bounds(table: &toml::Table) -> (bool, bool) {
+  let user_menu = table.get("user_menu").and_then(toml::Value::as_table);
+  (
+    user_menu.is_some_and(|table| table.contains_key("min_uid")),
+    user_menu.is_some_and(|table| table.contains_key("max_uid")),
+  )
+}
+
+fn apply_system_uid_defaults(
+  config: &mut Config,
+  (min_explicit, max_explicit): (bool, bool),
+) {
+  if min_explicit && max_explicit {
+    return;
+  }
+  let defaults = fs::read_to_string("/etc/login.defs")
+    .map_or((DEFAULT_MIN_UID, DEFAULT_MAX_UID), |content| {
+      parse_login_defs_uid_bounds(&content)
+    });
+  apply_uid_defaults(config, (min_explicit, max_explicit), defaults);
+}
+
+const fn apply_uid_defaults(
+  config: &mut Config,
+  (min_explicit, max_explicit): (bool, bool),
+  defaults: (u32, u32),
+) {
+  if !min_explicit {
+    config.user_menu.min_uid = defaults.0;
+  }
+  if !max_explicit {
+    config.user_menu.max_uid = defaults.1;
+  }
+}
+
+fn parse_login_defs_uid_bounds(content: &str) -> (u32, u32) {
+  content.lines().fold(
+    (DEFAULT_MIN_UID, DEFAULT_MAX_UID),
+    |mut bounds, line| {
+      let mut tokens = line.split_whitespace();
+      match (tokens.next(), tokens.next()) {
+        (Some("UID_MIN"), Some(value)) => {
+          bounds.0 = value.parse().unwrap_or(bounds.0);
+        },
+        (Some("UID_MAX"), Some(value)) => {
+          bounds.1 = value.parse().unwrap_or(bounds.1);
+        },
+        _ => {},
+      }
+      bounds
+    },
+  )
 }
 
 fn normalize_legacy_asterisks_table(table: &mut toml::Table) {
@@ -583,7 +257,7 @@ fn toml_error(
       })
   {
     return ConfigError::ParseWithContext {
-      source: format!(
+      message: format!(
         "TOML parse error: {} at {} (could not write diagnostic: {error})",
         original_error.message(),
         path.display()
@@ -592,7 +266,7 @@ fn toml_error(
   }
 
   ConfigError::ParseWithContext {
-    source: format!(
+    message: format!(
       "TOML parse error: {} at {}:{} (byte {})",
       original_error.message(),
       path.display(),
@@ -600,219 +274,6 @@ fn toml_error(
       span.start
     ),
   }
-}
-
-/// Extract CLI arguments into a Config struct (highest priority source)
-pub fn extract_cli_config(matches: &getopts::Matches) -> Config {
-  let mut config = Config::default();
-  // General config
-  if matches.opt_present("debug") {
-    config.general.debug = true;
-  }
-  if matches.opt_present("numlock") {
-    config.general.numlock = true;
-  }
-  // Display config
-  if matches.opt_present("time") {
-    config.display.show_time = true;
-  }
-  if let Some(format) = matches.opt_str("time-format") {
-    config.display.time_format = Some(format);
-  }
-  if matches.opt_present("title") {
-    config.display.show_title = true;
-  }
-  if let Some(custom_title) = matches.opt_str("custom-title") {
-    config.display.custom_title = Some(custom_title);
-  }
-  if let Some(greeting) = matches.opt_str("greeting") {
-    config.display.greeting = Some(greeting);
-  }
-  if matches.opt_present("issue") {
-    config.display.issue = true;
-  }
-  if matches.opt_present("battery") {
-    config.display.battery = true;
-  }
-  if let Some(align) = matches.opt_str("greet-align") {
-    config.display.align_greeting = match align.as_str() {
-      "left" => AlignGreeting::Left,
-      "right" => AlignGreeting::Right,
-      _ => AlignGreeting::Center,
-    };
-  }
-  // Remember config
-  if let Some(user) = matches.opt_str("user") {
-    config.remember.default_user = Some(user);
-  }
-  if matches.opt_present("remember") {
-    config.remember.username = true;
-  }
-  if matches.opt_present("remember-session") {
-    config.remember.session = true;
-  }
-  if matches.opt_present("remember-user-session") {
-    config.remember.user_session = true;
-  }
-  // User menu config
-  if matches.opt_present("user-menu") {
-    config.user_menu.enabled = true;
-  }
-  if let Some(min_uid) = matches.opt_str("user-menu-min-uid")
-    && let Ok(uid) = min_uid.parse::<u32>()
-  {
-    config.user_menu.min_uid = uid;
-  }
-  if let Some(max_uid) = matches.opt_str("user-menu-max-uid")
-    && let Ok(uid) = max_uid.parse::<u32>()
-  {
-    config.user_menu.max_uid = uid;
-  }
-  // Session config
-  if let Some(cmd) = matches.opt_str("cmd") {
-    config.session.command = Some(cmd);
-  }
-  if matches.opt_present("env") {
-    config.session.environments = matches.opt_strs("env");
-  }
-  if let Some(dirs) = matches.opt_str("sessions") {
-    config.session.sessions_dirs = dirs.split(':').map(String::from).collect();
-  }
-  if let Some(dirs) = matches.opt_str("xsessions") {
-    config.session.xsessions_dirs = dirs.split(':').map(String::from).collect();
-  }
-  if let Some(wrapper) = matches.opt_str("session-wrapper") {
-    config.session.session_wrapper = Some(wrapper);
-  }
-  if !matches.opt_present("no-xsession-wrapper")
-    && let Some(wrapper) = matches.opt_str("xsession-wrapper")
-  {
-    config.session.xsession_wrapper = Some(wrapper);
-  }
-  if let Some(session) = matches.opt_str("default-session") {
-    config.session.default_session = Some(session);
-  }
-  // Layout config
-  if let Some(width) = matches.opt_str("width")
-    && let Ok(w) = width.parse::<u16>()
-  {
-    config.layout.width = w;
-  }
-  if let Some(padding) = matches.opt_str("window-padding")
-    && let Ok(p) = padding.parse::<u16>()
-  {
-    config.layout.window_padding = Some(p);
-  }
-  if let Some(padding) = matches.opt_str("container-padding")
-    && let Ok(p) = padding.parse::<u16>()
-  {
-    config.layout.container_padding = Some(p);
-  }
-  if let Some(padding) = matches.opt_str("prompt-padding")
-    && let Ok(p) = padding.parse::<u16>()
-  {
-    config.layout.prompt_padding = Some(p);
-  }
-  // Keybindings config
-  if let Some(key) = matches.opt_str("kb-command")
-    && let Ok(k) = key.parse::<u8>()
-  {
-    config.keybindings.command = k;
-  }
-  if let Some(key) = matches.opt_str("kb-sessions")
-    && let Ok(k) = key.parse::<u8>()
-  {
-    config.keybindings.sessions = k;
-  }
-  if let Some(key) = matches.opt_str("kb-power")
-    && let Ok(k) = key.parse::<u8>()
-  {
-    config.keybindings.power = k;
-  }
-  if let Some(key) = matches.opt_str("kb-background")
-    && let Ok(k) = key.parse::<u8>()
-  {
-    config.keybindings.background = k;
-  }
-  // Secret config
-  if matches.opt_present("asterisks") {
-    config.secret.mode = SecretMode::Characters;
-  }
-  if let Some(chars) = matches.opt_str("asterisks-char") {
-    config.secret.characters = chars;
-  }
-  // Power config
-  if let Some(cmd) = matches.opt_str("power-shutdown") {
-    config.power.shutdown = Some(cmd);
-  }
-  if let Some(cmd) = matches.opt_str("power-reboot") {
-    config.power.reboot = Some(cmd);
-  }
-  if let Some(cmd) = matches.opt_str("power-suspend") {
-    config.power.suspend = Some(cmd);
-  }
-  if let Some(cmd) = matches.opt_str("power-hibernate") {
-    config.power.hibernate = Some(cmd);
-  }
-  if matches.opt_present("power-no-setsid") {
-    config.power.use_setsid = false;
-  }
-  // Background animation config
-  if let Some(kind) = matches.opt_str("background") {
-    config.background.kind = Some(kind);
-  }
-  if let Some(fps) = matches.opt_str("background-fps")
-    && let Ok(v) = fps.parse::<u32>()
-  {
-    config.background.fps = Some(v);
-  }
-  if let Some(h) = matches.opt_str("doom-height")
-    && let Ok(v) = h.parse::<u8>()
-  {
-    config.background.doom.height = Some(v);
-  }
-  if let Some(s) = matches.opt_str("doom-spread")
-    && let Ok(v) = s.parse::<u8>()
-  {
-    config.background.doom.spread = Some(v);
-  }
-  if let Some(colors) = matches.opt_str("doom-colors") {
-    let parts: Vec<&str> = colors.split(',').map(str::trim).collect();
-    if parts.len() == 3 {
-      config.background.doom.top_color = Some(parts[0].to_string());
-      config.background.doom.middle_color = Some(parts[1].to_string());
-      config.background.doom.bottom_color = Some(parts[2].to_string());
-    }
-  }
-  if let Some(colors) = matches.opt_str("matrix-colors") {
-    let parts: Vec<&str> = colors.split(',').map(str::trim).collect();
-    if parts.len() == 3 {
-      config.background.matrix.head_color = Some(parts[0].to_string());
-      config.background.matrix.bright_color = Some(parts[1].to_string());
-      config.background.matrix.dim_color = Some(parts[2].to_string());
-    }
-  }
-  if let Some(s) = matches.opt_str("matrix-length") {
-    let parts: Vec<&str> = s.split(',').map(str::trim).collect();
-    if parts.len() == 2
-      && let (Ok(lo), Ok(hi)) =
-        (parts[0].parse::<u16>(), parts[1].parse::<u16>())
-    {
-      config.background.matrix.min_length = Some(lo);
-      config.background.matrix.max_length = Some(hi);
-    }
-  }
-  if let Some(s) = matches.opt_str("matrix-speed") {
-    let parts: Vec<&str> = s.split(',').map(str::trim).collect();
-    if parts.len() == 2
-      && let (Ok(lo), Ok(hi)) =
-        (parts[0].parse::<f32>(), parts[1].parse::<f32>())
-    {
-      config.background.matrix.min_speed = Some(lo);
-      config.background.matrix.max_speed = Some(hi);
-    }
-  }
-  config
 }
 
 impl Config {
@@ -859,14 +320,41 @@ impl Config {
         "display.greeting".to_string(),
       ));
     }
-    if self.remember.user_session && !self.remember.username {
-      return Err(ConfigError::Dependency(
-        "remember.user_session requires remember.username".to_string(),
+    self.validate_remember_relationships()?;
+    if self.session.environments.iter().any(|value| {
+      value
+        .split_once('=')
+        .is_none_or(|(name, _)| name.trim().is_empty())
+    }) {
+      return Err(ConfigError::Validation(
+        "session.environments entries must use KEY=VALUE".to_string(),
+      ));
+    }
+    if matches!(self.secret.mode, SecretMode::Characters)
+      && self.secret.characters.is_empty()
+    {
+      return Err(ConfigError::Validation(
+        "secret.characters must not be empty in characters mode".to_string(),
       ));
     }
     if self.user_menu.min_uid > self.user_menu.max_uid {
       return Err(ConfigError::InvalidRange(
         "user_menu.min_uid must not exceed user_menu.max_uid".to_string(),
+      ));
+    }
+    Ok(())
+  }
+
+  fn validate_remember_relationships(&self) -> Result<(), ConfigError> {
+    if self.remember.session && self.remember.user_session {
+      return Err(ConfigError::MutuallyExclusive(
+        "remember.session".to_string(),
+        "remember.user_session".to_string(),
+      ));
+    }
+    if self.remember.user_session && !self.remember.username {
+      return Err(ConfigError::Dependency(
+        "remember.user_session requires remember.username".to_string(),
       ));
     }
     Ok(())
@@ -1182,8 +670,21 @@ fn command_exists(command: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+  use std::error::Error;
+
+  use tempfile::NamedTempFile;
+
   use super::*;
   use crate::{BindingAction, IdleAction, PromptAnchor, RegionItem};
+
+  #[test]
+  fn rust_defaults_match_empty_toml() -> Result<(), Box<dyn Error>> {
+    let rust_defaults = toml::Value::try_from(Config::default())?;
+    let parsed_defaults = toml::Value::try_from(toml::from_str::<Config>("")?)?;
+
+    assert_eq!(rust_defaults, parsed_defaults);
+    Ok(())
+  }
 
   #[test]
   fn toml_layers_preserve_explicit_default_values() -> Result<(), ConfigError> {
@@ -1198,6 +699,43 @@ mod tests {
     assert!(!config.display.show_time);
     assert_eq!(config.layout.width, 80);
     Ok(())
+  }
+
+  #[test]
+  fn typed_toml_errors_include_the_selected_path() -> Result<(), Box<dyn Error>>
+  {
+    let mut file = NamedTempFile::new()?;
+    writeln!(file, "[layout]\nwidth = \"wide\"")?;
+
+    let Err(error) = load_config_from_path(file.path()) else {
+      return Err(io::Error::other("invalid typed TOML loaded").into());
+    };
+
+    assert!(
+      error
+        .to_string()
+        .contains(file.path().to_string_lossy().as_ref())
+    );
+    Ok(())
+  }
+
+  #[test]
+  fn login_defs_uid_bounds_preserve_fallbacks_for_invalid_values() {
+    let bounds = parse_login_defs_uid_bounds("UID_MIN 500\nUID_MAX invalid\n");
+
+    assert_eq!(bounds, (500, DEFAULT_MAX_UID));
+  }
+
+  #[test]
+  fn explicit_uid_bounds_win_independently() {
+    let mut config = Config::default();
+    config.user_menu.min_uid = 111;
+    config.user_menu.max_uid = 222;
+
+    apply_uid_defaults(&mut config, (true, false), (333, 444));
+
+    assert_eq!(config.user_menu.min_uid, 111);
+    assert_eq!(config.user_menu.max_uid, 444);
   }
 
   #[test]
@@ -1220,71 +758,21 @@ mod tests {
   }
 
   #[test]
-  fn legacy_false_overrides_a_lower_characters_layer() -> Result<(), ConfigError>
-  {
-    let mut resolved = Config::default();
-    resolved.secret.mode = SecretMode::Characters;
-
-    let mut legacy_layer = Config::default();
-    legacy_layer.display.asterisks = Some(false);
-    apply_config_layer(&mut resolved, legacy_layer);
-
-    assert_eq!(resolved.secret.mode, SecretMode::Hidden);
-    assert!(
-      resolved
-        .validate(false)?
-        .iter()
-        .any(|warning| warning.contains("display.asterisks is deprecated"))
-    );
-    Ok(())
-  }
-
-  #[test]
-  fn canonical_higher_layer_overrides_legacy_alias() {
-    let mut resolved = Config::default();
-    resolved.display.asterisks = Some(true);
-
-    let mut canonical_layer = Config::default();
-    canonical_layer.secret.mode = SecretMode::Hidden;
-    canonical_layer.secret_mode_specified = true;
-    apply_config_layer(&mut resolved, canonical_layer);
-    normalize_legacy_asterisks(&mut resolved);
-
-    assert_eq!(resolved.secret.mode, SecretMode::Hidden);
-  }
-
-  #[test]
   fn test_mutual_exclusive_remember_flags() -> Result<(), ConfigError> {
-    let toml_content = r"
-  [remember]
-  username = true
-  session = true
-  user_session = true
-  ";
+    let config: Config = toml::from_str(
+      r"
+      [remember]
+      username = true
+      session = true
+      user_session = true
+      ",
+    )?;
 
-    let config: Config = toml::from_str(toml_content)?;
-
-    assert!(config.remember.session);
-    assert!(config.remember.user_session);
-
-    // Both flags being set is now a warning, not a hard error, so that the
-    // rest of the config is still applied. user_session takes behavioral
-    // precedence when both are true.
-    let result = config.validate(false);
-    assert!(
-      result.is_ok(),
-      "Both remember.session and remember.user_session being true should \
-       produce a warning, not an error"
-    );
-
-    let warnings = result?;
-    assert!(
-      warnings.iter().any(|w| {
-        w.contains("remember.session") && w.contains("remember.user_session")
-      }),
-      "Expected a warning about conflicting remember options, got: \
-       {warnings:?}"
-    );
+    assert!(matches!(
+      config.validate(false),
+      Err(ConfigError::MutuallyExclusive(left, right))
+        if left == "remember.session" && right == "remember.user_session"
+    ));
     Ok(())
   }
 
@@ -1596,127 +1084,6 @@ mod tests {
     Ok(())
   }
 
-  // Config priority tests
-
-  #[test]
-  fn test_cli_only_no_config() {
-    let mut config = Config::default();
-
-    let mut cli = Config::default();
-    cli.keybindings.sessions = 5;
-
-    apply_config_layer(&mut config, cli);
-
-    assert_eq!(config.keybindings.sessions, 5);
-  }
-
-  #[test]
-  fn test_config_overrides_defaults() {
-    let mut config = Config::default();
-
-    let mut file_config = Config::default();
-    file_config.keybindings.command = 3;
-
-    apply_config_layer(&mut config, file_config);
-
-    assert_eq!(config.keybindings.command, 3);
-  }
-
-  #[test]
-  fn test_user_overrides_system() {
-    let mut config = Config::default();
-    config.keybindings.command = 5;
-
-    let mut user = Config::default();
-    user.keybindings.command = 7;
-
-    apply_config_layer(&mut config, user);
-
-    assert_eq!(config.keybindings.command, 7);
-  }
-
-  #[test]
-  fn test_env_overrides_user() {
-    let mut config = Config::default();
-    config.keybindings.power = 10;
-
-    let mut env = Config::default();
-    env.keybindings.power = 8;
-
-    apply_config_layer(&mut config, env);
-
-    assert_eq!(config.keybindings.power, 8);
-  }
-
-  #[test]
-  fn test_cli_overrides_env() {
-    let mut config = Config::default();
-    config.keybindings.sessions = 3;
-
-    let mut cli = Config::default();
-    cli.keybindings.sessions = 9;
-
-    apply_config_layer(&mut config, cli);
-
-    assert_eq!(config.keybindings.sessions, 9);
-  }
-
-  #[test]
-  fn test_full_priority_chain() {
-    let mut config = Config::default();
-    assert_eq!(config.keybindings.command, 2);
-
-    let mut system = Config::default();
-    system.keybindings.command = 5;
-    apply_config_layer(&mut config, system);
-    assert_eq!(config.keybindings.command, 5);
-
-    let mut user = Config::default();
-    user.keybindings.command = 7;
-    apply_config_layer(&mut config, user);
-    assert_eq!(config.keybindings.command, 7);
-
-    let mut env = Config::default();
-    env.keybindings.command = 9;
-    apply_config_layer(&mut config, env);
-    assert_eq!(config.keybindings.command, 9);
-
-    let mut cli = Config::default();
-    cli.keybindings.command = 11;
-    apply_config_layer(&mut config, cli);
-    assert_eq!(config.keybindings.command, 11);
-  }
-
-  #[test]
-  fn test_lower_layer_preserved_when_higher_layer_uses_defaults() {
-    let mut config = Config::default();
-    config.keybindings.power = 10;
-    config.display.show_time = true;
-    config.remember.username = true;
-    config.layout.prompt.offset_x = 9;
-    config.idle.action = IdleAction::PauseAnimation;
-    config.layout.widgets.regions.top_left = vec![RegionItem::Time];
-
-    let mut user = Config::default();
-    user.display.greeting = Some("hello".to_string());
-    user.layout.prompt.offset_y = 3;
-    user.idle.timeout_seconds = 20;
-    user.layout.widgets.regions.bottom_right = vec![RegionItem::Actions];
-    apply_config_layer(&mut config, user);
-
-    assert_eq!(config.keybindings.power, 10);
-    assert!(config.display.show_time);
-    assert!(config.remember.username);
-    assert_eq!(config.display.greeting.as_deref(), Some("hello"));
-    assert_eq!(config.layout.prompt.offset_x, 9);
-    assert_eq!(config.layout.prompt.offset_y, 3);
-    assert_eq!(config.idle.action, IdleAction::PauseAnimation);
-    assert_eq!(config.idle.timeout_seconds, 20);
-    assert_eq!(config.layout.widgets.regions.top_left, [RegionItem::Time]);
-    assert_eq!(config.layout.widgets.regions.bottom_right, [
-      RegionItem::Actions
-    ]);
-  }
   #[test]
   fn parses_high_value_interaction_configuration() -> Result<(), ConfigError> {
     let config: Config = toml::from_str(

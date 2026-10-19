@@ -11,8 +11,7 @@ use crate::{Greeter, integration::common::backend::TestBackend, ui};
 fn test_greeter() -> Arc<RwLock<Greeter>> {
   let mut greeter = Greeter::default();
   greeter.working = false;
-  // Initialize config to avoid unwrap panics
-  greeter.config = Greeter::options().parse(&[""]).ok();
+  greeter.apply_config(Config::default());
   Arc::new(RwLock::new(greeter))
 }
 
@@ -37,6 +36,13 @@ async fn render_ui(
 /// Get text from a line in the buffer
 fn get_line(buffer: &Buffer, y: u16, width: u16) -> String {
   (0..width).map(|x| buffer[(x, y)].symbol()).collect()
+}
+
+fn has_border(buffer: &Buffer, color: Option<Color>) -> bool {
+  buffer.content.iter().any(|cell| {
+    matches!(cell.symbol(), "─" | "│" | "┌" | "┐" | "└" | "┘")
+      && color.is_none_or(|expected| cell.fg == expected)
+  })
 }
 
 #[tokio::test]
@@ -73,9 +79,7 @@ async fn test_status_bar_top_position() -> Result<(), Box<dyn Error>> {
     let mut config = Config::default();
     config.layout.widgets.status_position = WidgetPosition::Top;
 
-    // NOTE: loaded_config is what the UI actually reads
-    g.loaded_config = Some(config.clone());
-    g.apply_config(&config);
+    g.apply_config(config);
   }
 
   let buffer = render_ui(greeter, 80, 24).await?;
@@ -114,8 +118,7 @@ async fn test_status_bar_hidden() -> Result<(), Box<dyn Error>> {
     g.mode = Mode::Username;
     let mut config = Config::default();
     config.layout.widgets.status_position = WidgetPosition::Hidden;
-    g.loaded_config = Some(config.clone());
-    g.apply_config(&config);
+    g.apply_config(config);
   }
 
   let buffer = render_ui(greeter, 80, 24).await?;
@@ -171,8 +174,7 @@ async fn test_time_widget_bottom_position() -> Result<(), Box<dyn Error>> {
     g.mode = Mode::Username;
     let mut config = Config::default();
     config.layout.widgets.time_position = WidgetPosition::Bottom;
-    g.loaded_config = Some(config.clone());
-    g.apply_config(&config);
+    g.apply_config(config);
   }
 
   let buffer = render_ui(greeter, 80, 24).await?;
@@ -276,26 +278,7 @@ async fn test_container_renders() -> Result<(), Box<dyn Error>> {
 
   let buffer = render_ui(greeter, 80, 24).await?;
 
-  // Check for border characters across the entire buffer
-  let mut has_borders = false;
-  for y in 0..24 {
-    for x in 0..80 {
-      let char = buffer[(x, y)].symbol();
-      if char == "─"
-        || char == "│"
-        || char == "┌"
-        || char == "┐"
-        || char == "└"
-        || char == "┘"
-      {
-        has_borders = true;
-        break;
-      }
-    }
-    if has_borders {
-      break;
-    }
-  }
+  let has_borders = has_border(&buffer, None);
 
   assert!(
     has_borders,
@@ -312,8 +295,7 @@ async fn test_window_padding() -> Result<(), Box<dyn Error>> {
     g.mode = Mode::Username;
     let mut config = Config::default();
     config.layout.window_padding = Some(2);
-    g.loaded_config = Some(config.clone());
-    g.apply_config(&config);
+    g.apply_config(config);
   }
 
   let buffer = render_ui(greeter, 80, 24).await?;
@@ -343,35 +325,12 @@ async fn test_theme_border_color_applied() -> Result<(), Box<dyn Error>> {
     let mut config = Config::default();
     config.theme.border = Some("red".to_string());
 
-    g.loaded_config = Some(config.clone());
-    g.apply_config(&config);
-    g.apply_theme_config(&config.theme, None);
+    g.apply_config(config);
   }
 
   let buffer = render_ui(greeter, 80, 24).await?;
 
-  // Check that border characters have red color
-  let mut found_red_border = false;
-  for y in 0..24 {
-    for x in 0..80 {
-      let cell = &buffer[(x, y)];
-      let char = cell.symbol();
-      if (char == "─"
-        || char == "│"
-        || char == "┌"
-        || char == "┐"
-        || char == "└"
-        || char == "┘")
-        && cell.fg == Color::Red
-      {
-        found_red_border = true;
-        break;
-      }
-    }
-    if found_red_border {
-      break;
-    }
-  }
+  let found_red_border = has_border(&buffer, Some(Color::Red));
 
   assert!(
     found_red_border,
@@ -390,9 +349,7 @@ async fn test_theme_prompt_color_applied() -> Result<(), Box<dyn Error>> {
     let mut config = Config::default();
     config.theme.prompt = Some("yellow".to_string());
 
-    g.loaded_config = Some(config.clone());
-    g.apply_config(&config);
-    g.apply_theme_config(&config.theme, None);
+    g.apply_config(config);
   }
 
   let buffer = render_ui(greeter, 80, 24).await?;
@@ -430,9 +387,7 @@ async fn test_theme_container_background_applied() -> Result<(), Box<dyn Error>>
     let mut config = Config::default();
     config.theme.container = Some("blue".to_string());
 
-    g.loaded_config = Some(config.clone());
-    g.apply_config(&config);
-    g.apply_theme_config(&config.theme, None);
+    g.apply_config(config);
   }
 
   let buffer = render_ui(greeter, 80, 24).await?;
@@ -470,9 +425,7 @@ async fn test_theme_greeting_color_applied() -> Result<(), Box<dyn Error>> {
     config.display.greeting = Some("Welcome to the system!".to_string());
     config.theme.greet = Some("green".to_string());
 
-    g.loaded_config = Some(config.clone());
-    g.apply_config(&config);
-    g.apply_theme_config(&config.theme, None);
+    g.apply_config(config);
   }
 
   let buffer = render_ui(greeter, 80, 24).await?;
@@ -512,35 +465,12 @@ async fn test_theme_hex_colors_applied() -> Result<(), Box<dyn Error>> {
     let mut config = Config::default();
     config.theme.border = Some("#ff0000".to_string()); // Red in hex
 
-    g.loaded_config = Some(config.clone());
-    g.apply_config(&config);
-    g.apply_theme_config(&config.theme, None);
+    g.apply_config(config);
   }
 
   let buffer = render_ui(greeter, 80, 24).await?;
 
-  // Look for RGB(255,0,0) border
-  let mut found_rgb_border = false;
-  for y in 0..24 {
-    for x in 0..80 {
-      let cell = &buffer[(x, y)];
-      let char = cell.symbol();
-      if (char == "─"
-        || char == "│"
-        || char == "┌"
-        || char == "┐"
-        || char == "└"
-        || char == "┘")
-        && cell.fg == Color::Rgb(255, 0, 0)
-      {
-        found_rgb_border = true;
-        break;
-      }
-    }
-    if found_rgb_border {
-      break;
-    }
-  }
+  let found_rgb_border = has_border(&buffer, Some(Color::Rgb(255, 0, 0)));
 
   assert!(
     found_rgb_border,
@@ -562,9 +492,7 @@ async fn test_theme_multiple_colors_applied() -> Result<(), Box<dyn Error>> {
     config.theme.text = Some("cyan".to_string());
     config.theme.greet = Some("green".to_string());
 
-    g.loaded_config = Some(config.clone());
-    g.apply_config(&config);
-    g.apply_theme_config(&config.theme, None);
+    g.apply_config(config);
   }
 
   let buffer = render_ui(greeter, 80, 24).await?;
@@ -597,60 +525,6 @@ async fn test_theme_multiple_colors_applied() -> Result<(), Box<dyn Error>> {
 }
 
 #[tokio::test]
-async fn test_cli_theme_overrides_config_theme() -> Result<(), Box<dyn Error>> {
-  let greeter = test_greeter();
-  {
-    let mut g = greeter.write().await;
-    g.mode = Mode::Username;
-
-    let mut config = Config::default();
-    config.theme.border = Some("red".to_string());
-
-    // CLI theme overrides with blue
-    g.loaded_config = Some(config.clone());
-    g.apply_config(&config);
-    g.apply_theme_config(&config.theme, Some("border=blue"));
-  }
-
-  let buffer = render_ui(greeter, 80, 24).await?;
-
-  // Should find blue border (CLI override), not red
-  let mut found_blue_border = false;
-  let mut found_red_border = false;
-
-  for y in 0..24 {
-    for x in 0..80 {
-      let cell = &buffer[(x, y)];
-      let char = cell.symbol();
-      if char == "─"
-        || char == "│"
-        || char == "┌"
-        || char == "┐"
-        || char == "└"
-        || char == "┘"
-      {
-        if cell.fg == Color::Blue {
-          found_blue_border = true;
-        }
-        if cell.fg == Color::Red {
-          found_red_border = true;
-        }
-      }
-    }
-  }
-
-  assert!(
-    found_blue_border,
-    "CLI theme should override config theme with blue"
-  );
-  assert!(
-    !found_red_border,
-    "Config theme red should be overridden by CLI"
-  );
-  Ok(())
-}
-
-#[tokio::test]
 async fn test_theme_with_time_widget() -> Result<(), Box<dyn Error>> {
   let greeter = test_greeter();
   {
@@ -662,9 +536,7 @@ async fn test_theme_with_time_widget() -> Result<(), Box<dyn Error>> {
     config.display.show_time = true;
     config.theme.time = Some("lightred".to_string());
 
-    g.loaded_config = Some(config.clone());
-    g.apply_config(&config);
-    g.apply_theme_config(&config.theme, None);
+    g.apply_config(config);
   }
 
   let buffer = render_ui(greeter, 80, 24).await?;
@@ -805,8 +677,7 @@ async fn configured_regions_replace_legacy_status_rows()
     config.layout.widgets.regions.top_left = vec![RegionItem::Actions];
     config.layout.widgets.regions.top_right = vec![RegionItem::Time];
     config.layout.widgets.regions.bottom_right = vec![RegionItem::Session];
-    state.loaded_config = Some(config.clone());
-    state.apply_config(&config);
+    state.apply_config(config);
     state.mode = Mode::Username;
   }
 
@@ -829,15 +700,13 @@ async fn configured_regions_replace_legacy_status_rows()
 #[test]
 fn prompt_anchor_applies_margin_offset_and_terminal_origin() {
   let mut greeter = Greeter::default();
-  greeter.config = Greeter::options().parse(&[""]).ok();
   let mut config = Config::default();
   config.layout.width = 20;
   config.layout.prompt.anchor = PromptAnchor::TopLeft;
   config.layout.prompt.edge_margin = 2;
   config.layout.prompt.offset_x = 3;
   config.layout.prompt.offset_y = 1;
-  greeter.apply_config(&config);
-  greeter.loaded_config = Some(config.clone());
+  greeter.apply_config(config.clone());
 
   let bounds =
     ui::util::get_rect_bounds(&greeter, Rect::new(10, 20, 80, 24), 0);
@@ -848,7 +717,7 @@ fn prompt_anchor_applies_margin_offset_and_terminal_origin() {
   config.layout.prompt.anchor = PromptAnchor::BottomRight;
   config.layout.prompt.offset_x = i16::MAX;
   config.layout.prompt.offset_y = i16::MAX;
-  greeter.loaded_config = Some(config);
+  greeter.apply_config(config);
   let bounds =
     ui::util::get_rect_bounds(&greeter, Rect::new(10, 20, 80, 24), 0);
   assert_eq!(bounds.0, 68);
