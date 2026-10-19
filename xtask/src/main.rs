@@ -7,7 +7,7 @@ use std::{
 };
 
 use caress::{Shell, man};
-use chrono::{DateTime, Utc};
+use jiff::{Timestamp, fmt::strtime};
 use pound::Parse;
 use tuigreet_config::cli::Cli;
 
@@ -90,19 +90,11 @@ fn generate_manpages(output: &Path) -> Result<(), Box<dyn Error>> {
 
 fn generation_date() -> Result<String, Box<dyn Error>> {
   let timestamp = match env::var("SOURCE_DATE_EPOCH") {
-    Ok(value) => {
-      let seconds = value.parse::<i64>()?;
-      DateTime::<Utc>::from_timestamp(seconds, 0).ok_or_else(|| {
-        io::Error::new(
-          io::ErrorKind::InvalidInput,
-          "SOURCE_DATE_EPOCH is outside chrono's supported range",
-        )
-      })?
-    },
-    Err(env::VarError::NotPresent) => Utc::now(),
+    Ok(value) => Timestamp::from_second(value.parse::<i64>()?)?,
+    Err(env::VarError::NotPresent) => Timestamp::now(),
     Err(error) => return Err(error.into()),
   };
-  Ok(timestamp.format("%B %-d, %Y").to_string())
+  Ok(strtime::format("%B %-d, %Y", timestamp)?)
 }
 
 fn generate_completions(output: &Path) -> io::Result<()> {

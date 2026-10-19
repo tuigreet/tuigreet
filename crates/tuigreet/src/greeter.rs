@@ -7,9 +7,9 @@ use std::{
   sync::Arc,
 };
 
-use chrono::Locale;
 use crossterm::event::KeyEvent;
 use i18n_embed::DesktopLanguageRequester;
+use pure_rust_locales::Locale;
 use tokio::{
   net::UnixStream,
   sync::{RwLock, RwLockWriteGuard, mpsc::Sender},
@@ -69,7 +69,6 @@ struct IdleState {
   config: IdleConfig,
   active: bool,
 }
-
 const DEFAULT_LOCALE: Locale = Locale::en_US;
 
 /// Core greeter state managing authentication, UI, and session selection.

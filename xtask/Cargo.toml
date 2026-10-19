@@ -12,6 +12,6 @@ workspace = true
 
 [dependencies]
 caress          = { workspace = true }
-chrono          = { workspace = true }
+jiff            = { workspace = true }
 pound           = { workspace = true }
 tuigreet-config = { workspace = true }

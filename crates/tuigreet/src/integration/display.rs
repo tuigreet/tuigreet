@@ -1,6 +1,6 @@
 use std::io;
 
-use chrono::NaiveDateTime;
+use jiff::civil::DateTime;
 use libgreetd_stub::SessionOptions;
 use tokio::task::spawn;
 
@@ -102,7 +102,7 @@ async fn show_time() -> io::Result<()> {
       let initial = runner.output().await?;
       let timestamp = initial
         .split_whitespace()
-        .find(|word| NaiveDateTime::parse_from_str(word, TIME_FORMAT).is_ok())
+        .find(|word| DateTime::strptime(TIME_FORMAT, word).is_ok())
         .ok_or_else(|| {
           io::Error::other("rendered clock did not contain a timestamp")
         })?;
@@ -111,9 +111,11 @@ async fn show_time() -> io::Result<()> {
         runner.wait_for_render().await?;
         let rendered = runner.output().await?;
         if !rendered.contains(timestamp) {
-          assert!(rendered.split_whitespace().any(|word| {
-            NaiveDateTime::parse_from_str(word, TIME_FORMAT).is_ok()
-          }));
+          assert!(
+            rendered
+              .split_whitespace()
+              .any(|word| DateTime::strptime(TIME_FORMAT, word).is_ok())
+          );
           break;
         }
       }

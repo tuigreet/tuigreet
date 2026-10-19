@@ -10,7 +10,7 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-chrono             = { workspace = true }
+jiff               = { workspace = true }
 codespan-reporting = { workspace = true }
 dirs               = { workspace = true }
 flub               = { workspace = true }
