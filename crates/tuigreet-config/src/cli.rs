@@ -4,7 +4,7 @@ use std::{
   str::FromStr,
 };
 
-use pound::{Parse, Source, Sourced};
+use pound::{Parse, Source, Sourced, spec::CommandSpec};
 
 use crate::{
   AlignGreeting,
@@ -15,7 +15,7 @@ use crate::{
   WidgetPosition,
 };
 
-/// Typed command-line and environment configuration for tuigreet.
+/// A graphical console greeter for greetd.
 #[expect(
   clippy::struct_excessive_bools,
   reason = "Each field represents an independent startup action"
@@ -52,6 +52,12 @@ pub struct Cli {
 }
 
 impl Cli {
+  /// Static command metadata used for generated artifacts and completions.
+  #[must_use]
+  pub const fn spec() -> &'static CommandSpec {
+    <Self as Parse>::SPEC
+  }
+
   /// Parse the process command line, printing pound diagnostics and exiting on
   /// help or invalid arguments.
   #[must_use]

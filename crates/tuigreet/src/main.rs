@@ -20,7 +20,7 @@ use std::{
   fmt::Display,
   io::{self, Write},
   panic,
-  process,
+  process::ExitCode,
   sync::Arc,
 };
 
@@ -57,30 +57,35 @@ pub use self::greeter::*;
 #[cfg(not(test))] use self::watcher::ConfigWatcher;
 use self::{event::Events, ipc::Ipc, ui::common::masked::MaskedString};
 
+fn main() -> ExitCode {
+  caress::handle(Cli::spec());
+  run_main()
+}
+
 #[tokio::main]
-async fn main() {
+async fn run_main() -> ExitCode {
   if standalone_version_requested() {
     let Some(()) = startup_value(print_version()) else {
-      process::exit(1);
+      return ExitCode::FAILURE;
     };
-    return;
+    return ExitCode::SUCCESS;
   }
   let cli = Cli::parse();
   let Some(immediate_action) = startup_value(run_immediate_action(&cli)) else {
-    process::exit(1);
+    return ExitCode::FAILURE;
   };
   if immediate_action {
-    return;
+    return ExitCode::SUCCESS;
   }
 
   let Some(loaded) = startup_value(load_config(&cli)) else {
-    process::exit(1);
+    return ExitCode::FAILURE;
   };
   if cli.dump_config {
     let Some(()) = startup_value(write_effective_config(&loaded.config)) else {
-      process::exit(1);
+      return ExitCode::FAILURE;
     };
-    return;
+    return ExitCode::SUCCESS;
   }
 
   if !loaded.config.outputs.is_empty() || loaded.config.terminal.cols.is_some()
@@ -106,10 +111,11 @@ async fn main() {
       error.downcast_ref::<AuthStatus>(),
       Some(AuthStatus::Success)
     ) {
-      return;
+      return ExitCode::SUCCESS;
     }
-    process::exit(1);
+    return ExitCode::FAILURE;
   }
+  ExitCode::SUCCESS
 }
 
 fn standalone_version_requested() -> bool {

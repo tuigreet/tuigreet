@@ -19,6 +19,7 @@ tuigreet-types   = { path = "crates/tuigreet-types", version = "0.11.0" }
 
 # External
 ansi-to-tui = "8.0.1"
+caress = "0.2.1"
 chrono = { version = "0.4.45", features = [ "unstable-locales" ] }
 codespan-reporting = "0.13.1"
 crossterm = { version = "0.29.0", features = [ "event-stream" ] }

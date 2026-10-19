@@ -26,6 +26,7 @@ tuigreet-theme   = { workspace = true }
 tuigreet-types   = { workspace = true }
 
 ansi-to-tui        = { workspace = true }
+caress             = { workspace = true }
 chrono             = { workspace = true }
 crossterm          = { workspace = true }
 dirs               = { workspace = true }

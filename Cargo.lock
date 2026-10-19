@@ -123,6 +123,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
+name = "caress"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a7a3dddc4eee1160dd0e172d3c16ea5a030c691cb1391cd4177169717037e32"
+dependencies = [
+ "pound",
+]
+
+[[package]]
 name = "castaway"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2107,6 +2116,7 @@ name = "tuigreet"
 version = "0.11.0"
 dependencies = [
  "ansi-to-tui",
+ "caress",
  "chrono",
  "crossterm",
  "dirs",
