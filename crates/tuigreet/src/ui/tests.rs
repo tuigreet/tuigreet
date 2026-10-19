@@ -1,8 +1,8 @@
 use std::{error::Error, sync::Arc};
 
 use tokio::sync::RwLock;
-use tui::{Terminal, buffer::Buffer, style::Color};
-use tuigreet_config::{Config, WidgetPosition};
+use tui::{Terminal, buffer::Buffer, layout::Rect, style::Color};
+use tuigreet_config::{Config, PromptAnchor, RegionItem, WidgetPosition};
 use tuigreet_types::Mode;
 
 use crate::{Greeter, integration::common::backend::TestBackend, ui};
@@ -791,5 +791,112 @@ async fn test_matrix_animation_renders_and_form_stays_legible()
     !katakana_in_form,
     "matrix glyphs must not bleed through the login form"
   );
+  Ok(())
+}
+
+#[tokio::test]
+async fn configured_regions_replace_legacy_status_rows()
+-> Result<(), Box<dyn Error>> {
+  let greeter = test_greeter();
+  {
+    let mut state = greeter.write().await;
+    let mut config = Config::default();
+    config.display.show_time = true;
+    config.layout.widgets.regions.top_left = vec![RegionItem::Actions];
+    config.layout.widgets.regions.top_right = vec![RegionItem::Time];
+    config.layout.widgets.regions.bottom_right = vec![RegionItem::Session];
+    state.loaded_config = Some(config.clone());
+    state.apply_config(&config);
+    state.mode = Mode::Username;
+  }
+
+  let buffer = render_ui(greeter, 100, 24).await?;
+  let top = get_line(&buffer, 0, 100);
+  assert!(top.contains("ESC") && top.contains("F2"), "{top}");
+  assert!(
+    top.contains(':'),
+    "time should render in the top region: {top}"
+  );
+  for y in 1..24 {
+    assert!(
+      !get_line(&buffer, y, 100).contains("F2"),
+      "legacy status row was rendered at line {y}"
+    );
+  }
+  Ok(())
+}
+
+#[test]
+fn prompt_anchor_applies_margin_offset_and_terminal_origin() {
+  let mut greeter = Greeter::default();
+  greeter.config = Greeter::options().parse(&[""]).ok();
+  let mut config = Config::default();
+  config.layout.width = 20;
+  config.layout.prompt.anchor = PromptAnchor::TopLeft;
+  config.layout.prompt.edge_margin = 2;
+  config.layout.prompt.offset_x = 3;
+  config.layout.prompt.offset_y = 1;
+  greeter.apply_config(&config);
+  greeter.loaded_config = Some(config.clone());
+
+  let bounds =
+    ui::util::get_rect_bounds(&greeter, Rect::new(10, 20, 80, 24), 0);
+  assert_eq!(bounds.0, 15);
+  assert_eq!(bounds.1, 23);
+  assert_eq!(bounds.2, 20);
+
+  config.layout.prompt.anchor = PromptAnchor::BottomRight;
+  config.layout.prompt.offset_x = i16::MAX;
+  config.layout.prompt.offset_y = i16::MAX;
+  greeter.loaded_config = Some(config);
+  let bounds =
+    ui::util::get_rect_bounds(&greeter, Rect::new(10, 20, 80, 24), 0);
+  assert_eq!(bounds.0, 68);
+  assert!(bounds.1 + bounds.3 <= 42);
+}
+
+#[tokio::test]
+async fn blank_idle_policy_hides_and_restores_the_interface()
+-> Result<(), Box<dyn Error>> {
+  let greeter = test_greeter();
+  {
+    let mut state = greeter.write().await;
+    state.mode = Mode::Username;
+    state.enter_idle();
+  }
+
+  let blank = render_ui(Arc::clone(&greeter), 80, 24).await?;
+  assert!((0..24).all(|y| get_line(&blank, y, 80).trim().is_empty()));
+
+  greeter.write().await.wake_from_idle();
+  let restored = render_ui(greeter, 80, 24).await?;
+  assert!((0..24).any(|y| {
+    get_line(&restored, y, 80)
+      .to_lowercase()
+      .contains("username")
+  }));
+  Ok(())
+}
+
+#[tokio::test]
+async fn revealed_password_is_rendered_with_a_warning()
+-> Result<(), Box<dyn Error>> {
+  let greeter = test_greeter();
+  {
+    let mut state = greeter.write().await;
+    state.mode = Mode::Password;
+    state.asking_for_secret = true;
+    state.buffer = "hunter2".to_string();
+    state.set_prompt("Password:");
+    state.toggle_secret_visibility();
+  }
+
+  let buffer = render_ui(greeter, 100, 24).await?;
+  let screen = (0..24)
+    .map(|y| get_line(&buffer, y, 100))
+    .collect::<Vec<_>>()
+    .join("\n");
+  assert!(screen.contains("hunter2"));
+  assert!(screen.contains("PASSWORD VISIBLE"));
   Ok(())
 }

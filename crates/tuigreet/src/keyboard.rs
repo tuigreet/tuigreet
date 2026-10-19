@@ -3,6 +3,7 @@ use std::{error::Error, io, sync::Arc};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use greetd_ipc::Request;
 use tokio::sync::RwLock;
+use tuigreet_config::BindingAction;
 use tuigreet_types::Mode;
 
 use crate::{
@@ -45,6 +46,11 @@ pub async fn handle(
   let mut greeter = greeter.write().await;
 
   if greeter.working {
+    return Ok(());
+  }
+
+  if let Some(action) = greeter.action_for_key(input) {
+    perform_action(&mut greeter, action);
     return Ok(());
   }
 
@@ -118,88 +124,6 @@ pub async fn handle(
         greeter.cursor_offset.checked_add(1).ok_or_else(|| {
           io::Error::new(io::ErrorKind::InvalidInput, "cursor offset overflow")
         })?;
-    },
-
-    // F2 will display the command entry prompt. If we are already in one of the
-    // popup screens, we set the previous screen as being the current previous
-    // screen.
-    KeyEvent {
-      code: KeyCode::F(i),
-      ..
-    } if i == greeter.kb_command => {
-      greeter.previous_mode = match greeter.mode {
-        Mode::Users
-        | Mode::Command
-        | Mode::Sessions
-        | Mode::Power
-        | Mode::Background => greeter.previous_mode,
-        _ => greeter.mode,
-      };
-
-      // Set the edition buffer to the current command.
-      greeter.previous_buffer = Some(greeter.buffer.clone());
-      greeter.buffer = greeter
-        .session_source
-        .command(&greeter)
-        .map(str::to_string)
-        .unwrap_or_default();
-      greeter.cursor_offset = 0;
-      greeter.mode = Mode::Command;
-    },
-
-    // F3 will display the session selection menu. If we are already in one of
-    // the popup screens, we set the previous screen as being the current
-    // previous screen.
-    KeyEvent {
-      code: KeyCode::F(i),
-      ..
-    } if i == greeter.kb_sessions && !greeter.sessions.options.is_empty() => {
-      greeter.previous_mode = match greeter.mode {
-        Mode::Users
-        | Mode::Command
-        | Mode::Sessions
-        | Mode::Power
-        | Mode::Background => greeter.previous_mode,
-        _ => greeter.mode,
-      };
-
-      greeter.mode = Mode::Sessions;
-    },
-
-    // F12 will display the user selection menu. If we are already in one of the
-    // popup screens, we set the previous screen as being the current previous
-    // screen.
-    KeyEvent {
-      code: KeyCode::F(i),
-      ..
-    } if i == greeter.kb_power && !greeter.powers.options.is_empty() => {
-      greeter.previous_mode = match greeter.mode {
-        Mode::Users
-        | Mode::Command
-        | Mode::Sessions
-        | Mode::Power
-        | Mode::Background => greeter.previous_mode,
-        _ => greeter.mode,
-      };
-
-      greeter.mode = Mode::Power;
-    },
-
-    // F4 (default) opens the background animation switcher.
-    KeyEvent {
-      code: KeyCode::F(i),
-      ..
-    } if i == greeter.kb_background => {
-      greeter.previous_mode = match greeter.mode {
-        Mode::Users
-        | Mode::Command
-        | Mode::Sessions
-        | Mode::Power
-        | Mode::Background => greeter.previous_mode,
-        _ => greeter.mode,
-      };
-
-      greeter.mode = Mode::Background;
     },
 
     // Handle moving up in menus.
@@ -423,6 +347,47 @@ pub async fn handle(
   drop(greeter);
 
   Ok(())
+}
+
+fn perform_action(greeter: &mut Greeter, action: BindingAction) {
+  match action {
+    BindingAction::Command => {
+      greeter.previous_mode = base_mode(greeter);
+      greeter.previous_buffer = Some(greeter.buffer.clone());
+      greeter.buffer = greeter
+        .session_source
+        .command(greeter)
+        .map(str::to_string)
+        .unwrap_or_default();
+      greeter.cursor_offset = 0;
+      greeter.mode = Mode::Command;
+    },
+    BindingAction::Sessions if !greeter.sessions.options.is_empty() => {
+      greeter.previous_mode = base_mode(greeter);
+      greeter.mode = Mode::Sessions;
+    },
+    BindingAction::Power if !greeter.powers.options.is_empty() => {
+      greeter.previous_mode = base_mode(greeter);
+      greeter.mode = Mode::Power;
+    },
+    BindingAction::Background => {
+      greeter.previous_mode = base_mode(greeter);
+      greeter.mode = Mode::Background;
+    },
+    BindingAction::TogglePassword => greeter.toggle_secret_visibility(),
+    BindingAction::Sessions | BindingAction::Power => {},
+  }
+}
+
+const fn base_mode(greeter: &Greeter) -> Mode {
+  match greeter.mode {
+    Mode::Users
+    | Mode::Command
+    | Mode::Sessions
+    | Mode::Power
+    | Mode::Background => greeter.previous_mode,
+    _ => greeter.mode,
+  }
 }
 
 // Handle insertion of characters into the proper buffer, depending on the
@@ -825,6 +790,15 @@ mod test {
 
     {
       let mut greeter = greeter.write().await;
+      greeter.parse_options(&[
+        "tuigreet",
+        "--kb-command",
+        "3",
+        "--kb-sessions",
+        "1",
+        "--kb-power",
+        "11",
+      ])?;
       greeter.sessions.options.push(Session::default());
       greeter.powers.options.push(Power {
         action: PowerOption::Shutdown,
@@ -838,9 +812,6 @@ mod test {
     ] {
       {
         let mut greeter = greeter.write().await;
-        greeter.kb_command = 3;
-        greeter.kb_sessions = 1;
-        greeter.kb_power = 11;
         greeter.mode = Mode::Username;
         greeter.buffer = "apognu".to_string();
       }
@@ -1110,6 +1081,41 @@ mod test {
     delete_key(&mut greeter, KeyCode::Backspace)?;
     assert_eq!(greeter.buffer, "a".repeat(32_768));
     assert_eq!(greeter.cursor_offset, -32_768);
+    Ok(())
+  }
+  #[tokio::test]
+  async fn password_visibility_toggles_only_for_secret_prompts()
+  -> Result<(), Box<dyn Error>> {
+    let greeter = Arc::new(RwLock::new(Greeter::default()));
+    {
+      let mut state = greeter.write().await;
+      state.mode = Mode::Password;
+      state.asking_for_secret = true;
+      state.buffer = "hunter2".to_string();
+    }
+
+    handle(
+      Arc::clone(&greeter),
+      KeyEvent::new(KeyCode::F(7), KeyModifiers::NONE),
+      Ipc::new(),
+    )
+    .await?;
+    assert!(greeter.read().await.is_secret_revealed());
+
+    {
+      let mut state = greeter.write().await;
+      state.set_prompt("Password:");
+      assert!(!state.is_secret_revealed());
+      state.mode = Mode::Username;
+      state.asking_for_secret = false;
+    }
+    handle(
+      Arc::clone(&greeter),
+      KeyEvent::new(KeyCode::F(7), KeyModifiers::NONE),
+      Ipc::new(),
+    )
+    .await?;
+    assert!(!greeter.read().await.is_secret_revealed());
     Ok(())
   }
 }

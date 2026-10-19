@@ -10,6 +10,7 @@ action_command = Change command
 action_session = Choose session
 action_power = Power
 action_background = Background
+action_password = Toggle password
 
 background_none = None
 
@@ -34,3 +35,4 @@ command_failed = Command failed
 status_command = CMD
 status_session = SESS
 status_caps = CAPS LOCK
+status_password_visible = PASSWORD VISIBLE

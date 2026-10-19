@@ -13,6 +13,7 @@ use chrono::{
   Locale,
   format::{Item, StrftimeItems},
 };
+use crossterm::event::KeyEvent;
 use getopts::{Matches, Options};
 use i18n_embed::DesktopLanguageRequester;
 use tokio::{
@@ -21,8 +22,15 @@ use tokio::{
 };
 use tracing_appender::non_blocking::WorkerGuard;
 use tui::style::Color;
-use tuigreet_config::parser::extract_cli_config;
 #[cfg(not(test))] use tuigreet_config::parser::load_config;
+use tuigreet_config::{
+  BindingAction,
+  IdleAction,
+  IdleConfig,
+  KeybindingsConfig,
+  StatusBarConfig,
+  parser::extract_cli_config,
+};
 use tuigreet_theme::Theme;
 use tuigreet_types::{
   AuthStatus,
@@ -36,6 +44,7 @@ use tuigreet_types::{
 use zeroize::Zeroize;
 
 use crate::{
+  action::{KeyBinding, bindings_from_config},
   event::Event,
   info::{
     get_issue,
@@ -64,6 +73,12 @@ use crate::{
 pub const ANIMATION_DEFAULT_FPS: u32 = 30;
 /// Base/floor render rate
 pub const DEFAULT_FPS: u32 = 2;
+
+#[derive(Debug, Clone, Copy, Default)]
+struct IdleState {
+  config: IdleConfig,
+  active: bool,
+}
 
 const DEFAULT_LOCALE: Locale = Locale::en_US;
 
@@ -129,6 +144,8 @@ pub struct Greeter {
   pub asking_for_secret: bool,
   // How should secrets be displayed?
   pub secret_display:    SecretDisplay,
+  // Whether an active secret prompt is temporarily revealed.
+  secret_revealed:       bool,
 
   // Whether last logged-in user should be remembered.
   pub remember:              bool,
@@ -157,18 +174,12 @@ pub struct Greeter {
   // Whether to prefix the power commands with `setsid`.
   pub power_setsid: bool,
 
-  pub kb_command:    u8,
-  pub kb_sessions:   u8,
-  pub kb_power:      u8,
-  pub kb_background: u8,
+  // Effective typed action bindings, including legacy F-key settings.
+  bindings:   Vec<KeyBinding>,
+  status_bar: StatusBarConfig,
 
-  pub status_show_reset:          bool,
-  pub status_show_command:        bool,
-  pub status_show_session:        bool,
-  pub status_show_power:          bool,
-  pub status_show_background:     bool,
-  pub status_show_session_status: bool,
-  pub status_show_caps_lock:      bool,
+  // Inactivity policy and current state.
+  idle: IdleState,
 
   // Background animation, drawn before the login UI.
   pub animation:     Option<Box<dyn Animation>>,
@@ -190,64 +201,57 @@ pub struct Greeter {
 impl Default for Greeter {
   fn default() -> Self {
     Self {
-      debug:                      false,
-      logfile:                    DEFAULT_LOG_FILE.to_string(),
-      logger:                     None,
-      numlock:                    false,
-      locale:                     DEFAULT_LOCALE,
-      config:                     None,
-      loaded_config:              None,
-      socket:                     String::new(),
-      stream:                     None,
-      events:                     None,
-      mode:                       Mode::default(),
-      previous_mode:              Mode::default(),
-      cursor_offset:              0,
-      previous_buffer:            None,
-      buffer:                     String::new(),
-      session_source:             SessionSource::default(),
-      session_paths:              Vec::new(),
-      sessions:                   Menu::default(),
-      session_wrapper:            None,
-      xsession_wrapper:           None,
-      default_session:            None,
-      user_menu:                  false,
-      users:                      Menu::default(),
-      default_user:               None,
-      username:                   MaskedString::default(),
-      prompt:                     None,
-      asking_for_secret:          false,
-      secret_display:             SecretDisplay::default(),
-      remember:                   false,
-      remember_session:           false,
-      remember_user_session:      false,
-      theme:                      Theme::default(),
-      time:                       false,
-      time_format:                None,
-      battery:                    false,
-      greeting:                   None,
-      title:                      TitleOption::default(),
-      message:                    None,
-      powers:                     Menu::default(),
-      power_setsid:               false,
-      kb_command:                 2,
-      kb_sessions:                3,
-      kb_power:                   12,
-      kb_background:              4,
-      status_show_reset:          true,
-      status_show_command:        true,
-      status_show_session:        true,
-      status_show_power:          true,
-      status_show_background:     true,
-      status_show_session_status: true,
-      status_show_caps_lock:      true,
-      animation:                  None,
-      animation_fps:              None,
-      mock:                       false,
-      backgrounds:                Menu::default(),
-      working:                    false,
-      done:                       false,
-      exit:                       None,
+      debug:                 false,
+      logfile:               DEFAULT_LOG_FILE.to_string(),
+      logger:                None,
+      numlock:               false,
+      locale:                DEFAULT_LOCALE,
+      config:                None,
+      loaded_config:         None,
+      socket:                String::new(),
+      stream:                None,
+      events:                None,
+      mode:                  Mode::default(),
+      previous_mode:         Mode::default(),
+      cursor_offset:         0,
+      previous_buffer:       None,
+      buffer:                String::new(),
+      session_source:        SessionSource::default(),
+      session_paths:         Vec::new(),
+      sessions:              Menu::default(),
+      session_wrapper:       None,
+      xsession_wrapper:      None,
+      default_session:       None,
+      user_menu:             false,
+      users:                 Menu::default(),
+      default_user:          None,
+      username:              MaskedString::default(),
+      prompt:                None,
+      asking_for_secret:     false,
+      secret_display:        SecretDisplay::default(),
+      secret_revealed:       false,
+      remember:              false,
+      remember_session:      false,
+      remember_user_session: false,
+      theme:                 Theme::default(),
+      time:                  false,
+      time_format:           None,
+      battery:               false,
+      greeting:              None,
+      title:                 TitleOption::default(),
+      message:               None,
+      powers:                Menu::default(),
+      power_setsid:          false,
+      bindings:              bindings_from_config(&KeybindingsConfig::default()),
+      status_bar:            StatusBarConfig::default(),
+      idle:                  IdleState::default(),
+      animation:             None,
+      animation_fps:         None,
+      mock:                  false,
+      backgrounds:           Menu::default(),
+      working:               false,
+      done:                  false,
+      exit:                  None,
     }
   }
 }
@@ -462,6 +466,7 @@ impl Greeter {
   // give the user another chance, as PAM would).
   fn scrub(&mut self, scrub_message: bool, soft: bool) {
     self.buffer.zeroize();
+    self.secret_revealed = false;
     self.prompt.zeroize();
 
     if !soft {
@@ -1167,36 +1172,8 @@ impl Greeter {
 
     self.power_setsid = !self.config().opt_present("power-no-setsid");
 
-    self.kb_command = self
-      .config()
-      .opt_str("kb-command")
-      .map_or(2, |i| i.parse::<u8>().unwrap_or_default());
-    self.kb_sessions = self
-      .config()
-      .opt_str("kb-sessions")
-      .map_or(3, |i| i.parse::<u8>().unwrap_or_default());
-    self.kb_power = self
-      .config()
-      .opt_str("kb-power")
-      .map_or(12, |i| i.parse::<u8>().unwrap_or_default());
-    self.kb_background = self
-      .config()
-      .opt_str("kb-background")
-      .map_or(4, |i| i.parse::<u8>().unwrap_or_default());
-
-    let kbs = [
-      self.kb_command,
-      self.kb_sessions,
-      self.kb_power,
-      self.kb_background,
-    ];
-    for i in 0..kbs.len() {
-      for j in (i + 1)..kbs.len() {
-        if kbs[i] == kbs[j] {
-          return Err("keybindings must all be distinct".into());
-        }
-      }
-    }
+    let keybindings = parse_cli_keybindings(self.config())?;
+    self.set_keybindings(&keybindings);
 
     let cli_config = extract_cli_config(self.config());
     self.set_background_from_config(&cli_config.background);
@@ -1366,6 +1343,7 @@ impl Greeter {
   }
 
   pub fn set_prompt(&mut self, prompt: &str) {
+    self.secret_revealed = false;
     self.prompt = if prompt.ends_with(' ') {
       Some(prompt.into())
     } else {
@@ -1469,24 +1447,80 @@ impl Greeter {
       },
     }
     // Keybindings
-    self.kb_command = config.keybindings.command;
-    self.kb_sessions = config.keybindings.sessions;
-    self.kb_power = config.keybindings.power;
-    self.kb_background = config.keybindings.background;
-    // Status bar visibility
-    self.status_show_reset = config.layout.widgets.status_bar.show_reset;
-    self.status_show_command = config.layout.widgets.status_bar.show_command;
-    self.status_show_session = config.layout.widgets.status_bar.show_session;
-    self.status_show_power = config.layout.widgets.status_bar.show_power;
-    self.status_show_background =
-      config.layout.widgets.status_bar.show_background;
-    self.status_show_session_status =
-      config.layout.widgets.status_bar.show_session_status;
-    self.status_show_caps_lock =
-      config.layout.widgets.status_bar.show_caps_lock;
+    self.set_keybindings(&config.keybindings);
+    self.status_bar = config.layout.widgets.status_bar;
+    self.idle = IdleState {
+      config: config.idle,
+      active: false,
+    };
     // Animation
     self.set_background_from_config(&config.background);
     self.populate_backgrounds_menu();
+  }
+
+  pub fn set_keybindings(&mut self, config: &KeybindingsConfig) {
+    self.bindings = bindings_from_config(config);
+  }
+
+  #[must_use]
+  pub fn action_for_key(&self, key: KeyEvent) -> Option<BindingAction> {
+    self
+      .bindings
+      .iter()
+      .find(|binding| binding.matches(key))
+      .map(KeyBinding::action)
+  }
+
+  #[must_use]
+  pub fn key_for_action(&self, action: BindingAction) -> Option<&str> {
+    self
+      .bindings
+      .iter()
+      .find(|binding| binding.action() == action)
+      .map(KeyBinding::label)
+  }
+
+  #[must_use]
+  pub(crate) const fn status_bar(&self) -> &StatusBarConfig {
+    &self.status_bar
+  }
+
+  #[must_use]
+  pub const fn idle_timeout(&self) -> u64 {
+    self.idle.config.timeout_seconds
+  }
+
+  #[must_use]
+  pub const fn idle_action(&self) -> IdleAction {
+    self.idle.config.action
+  }
+
+  #[must_use]
+  pub const fn is_idle(&self) -> bool {
+    self.idle.active
+  }
+
+  pub const fn enter_idle(&mut self) {
+    self.idle.active = true;
+  }
+
+  /// Wakes the greeter and reports whether the triggering key should be
+  /// consumed.
+  pub const fn wake_from_idle(&mut self) -> bool {
+    let was_idle = self.idle.active;
+    self.idle.active = false;
+    was_idle
+  }
+
+  #[must_use]
+  pub const fn is_secret_revealed(&self) -> bool {
+    self.secret_revealed
+  }
+
+  pub fn toggle_secret_visibility(&mut self) {
+    if self.mode == Mode::Password && self.asking_for_secret {
+      self.secret_revealed = !self.secret_revealed;
+    }
   }
 
   pub fn reload_sessions(&mut self) {
@@ -1609,6 +1643,57 @@ fn print_version() -> io::Result<()> {
     stdout,
     "There is NO WARRANTY, to the extent provided by law."
   )
+}
+
+fn parse_cli_keybindings(
+  options: &Matches,
+) -> Result<KeybindingsConfig, Box<dyn Error>> {
+  let keybindings = KeybindingsConfig {
+    command:    parse_function_key(options, "kb-command", 2)?,
+    sessions:   parse_function_key(options, "kb-sessions", 3)?,
+    power:      parse_function_key(options, "kb-power", 12)?,
+    background: parse_function_key(options, "kb-background", 4)?,
+    actions:    Vec::new(),
+  };
+  if !legacy_keybindings_are_distinct(&keybindings) {
+    return Err("keybindings must all be distinct".into());
+  }
+  Ok(keybindings)
+}
+
+fn parse_function_key(
+  options: &Matches,
+  name: &str,
+  default: u8,
+) -> Result<u8, Box<dyn Error>> {
+  let Some(value) = options.opt_str(name) else {
+    return Ok(default);
+  };
+  let key = value.parse::<u8>().map_err(|error| {
+    io::Error::new(
+      io::ErrorKind::InvalidInput,
+      format!("invalid --{name} value '{value}': {error}"),
+    )
+  })?;
+  if !(1..=12).contains(&key) {
+    return Err(
+      io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!("--{name} must be in the range 1-12"),
+      )
+      .into(),
+    );
+  }
+  Ok(key)
+}
+
+const fn legacy_keybindings_are_distinct(config: &KeybindingsConfig) -> bool {
+  config.command != config.sessions
+    && config.command != config.power
+    && config.command != config.background
+    && config.sessions != config.power
+    && config.sessions != config.background
+    && config.power != config.background
 }
 
 #[cfg(test)]

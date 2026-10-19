@@ -1,8 +1,9 @@
-use std::error::Error;
+use std::{borrow::Cow, error::Error};
 
 use rand::{RngExt, SeedableRng, prelude::StdRng};
 use tui::{
   layout::{Alignment, Constraint, Direction, Layout, Rect},
+  style::Modifier,
   text::Span,
   widgets::{Block, BorderType, Borders, Clear, Paragraph},
 };
@@ -167,35 +168,11 @@ pub fn draw_with_area(
       {
         f.render_widget(answer_label, chunks[ANSWER_INDEX]);
 
-        if !greeter.asking_for_secret || greeter.secret_display.show() {
-          let value = match (greeter.asking_for_secret, &greeter.secret_display)
-          {
-            (true, SecretDisplay::Character(pool)) => {
-              let pool_length = pool.chars().count();
-              if pool_length == 0 {
-                return Err(
-                  "secret display character pool must not be empty".into(),
-                );
-              }
-              if pool_length == 1 {
-                pool.repeat(greeter.buffer.chars().count())
-              } else {
-                let mut rng = StdRng::seed_from_u64(0);
-
-                greeter
-                  .buffer
-                  .chars()
-                  .map(|_| {
-                    pool.chars().nth(rng.random_range(0..pool_length)).ok_or(
-                      "secret display index is outside its character pool",
-                    )
-                  })
-                  .collect::<Result<String, _>>()?
-              }
-            },
-
-            _ => greeter.buffer.clone(),
-          };
+        if greeter.is_secret_revealed()
+          || !greeter.asking_for_secret
+          || greeter.secret_display.show()
+        {
+          let value = secret_value(greeter)?;
 
           let answer_value_text = Span::from(value);
           let answer_value =
@@ -210,6 +187,17 @@ pub fn draw_with_area(
               1,
             ),
           );
+
+          if greeter.asking_for_secret && greeter.is_secret_revealed() {
+            let warning = Paragraph::new(fl!("status_password_visible"))
+              .alignment(Alignment::Right)
+              .style(
+                theme
+                  .of(&[Themed::ActionButton])
+                  .add_modifier(Modifier::BOLD | Modifier::REVERSED),
+              );
+            f.render_widget(warning, chunks[ANSWER_INDEX]);
+          }
         }
       }
 
@@ -258,4 +246,30 @@ pub fn draw_with_area(
 
     _ => Ok((1, 1)),
   }
+}
+
+fn secret_value(greeter: &Greeter) -> Result<Cow<'_, str>, Box<dyn Error>> {
+  if greeter.asking_for_secret && greeter.is_secret_revealed() {
+    return Ok(Cow::Borrowed(greeter.buffer.as_str()));
+  }
+  let (true, SecretDisplay::Character(pool)) =
+    (greeter.asking_for_secret, &greeter.secret_display)
+  else {
+    return Ok(Cow::Borrowed(greeter.buffer.as_str()));
+  };
+
+  let characters = pool.chars().collect::<Vec<_>>();
+  if characters.is_empty() {
+    return Err("secret display character pool must not be empty".into());
+  }
+  if characters.len() == 1 {
+    return Ok(Cow::Owned(pool.repeat(greeter.buffer.chars().count())));
+  }
+
+  let mut rng = StdRng::seed_from_u64(0);
+  let mut masked = String::with_capacity(greeter.buffer.len());
+  for _ in greeter.buffer.chars() {
+    masked.push(characters[rng.random_range(0..characters.len())]);
+  }
+  Ok(Cow::Owned(masked))
 }
