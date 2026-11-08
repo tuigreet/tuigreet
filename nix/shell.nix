@@ -2,7 +2,7 @@
   self,
   craneLib,
   stdenv,
-  taplo,
+  tombi,
   cargo-nextest,
 }:
 craneLib.devShell {
@@ -14,7 +14,7 @@ craneLib.devShell {
 
   # Other packages not provided by rust-overlay
   packages = [
-    taplo
+    tombi
     cargo-nextest
   ];
 }
