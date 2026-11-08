@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "https://channels.nixos.org/nixos-unstable/nixexprs.tar.zst";
     crane.url = "github:ipetkov/crane";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
@@ -21,9 +21,6 @@
     mkCraneLib = pkgs:
       (crane.mkLib pkgs).overrideToolchain (p:
         # Build tools
-        # We use the rust-overlay to get the stable Rust toolchain for various targets.
-        # This is not exactly necessary, but it allows for compiling for various targets
-        # with the least amount of friction.
           (p.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml).override {
             extensions = ["rustfmt" "rust-analyzer" "clippy"];
             targets = [];
@@ -64,15 +61,15 @@
           pkgs.fd
           pkgs.prettier
           pkgs.deno
-          pkgs.taplo
+          pkgs.tombi
         ];
 
         text = ''
           # Format Nix with Alejandra
           fd "$@" -t f -e nix -x alejandra -q '{}'
 
-          # Format TOML with Taplo
-          fd "$@" -t f -e toml -x taplo fmt '{}'
+          # Format TOML with Tombi
+          fd "$@" -t f -e toml -x tombi format '{}'
 
           # Format CSS with Prettier
            fd "$@" -t f -e css -x prettier --write '{}'
