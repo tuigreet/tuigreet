@@ -49,7 +49,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: dtolnay/rust-toolchain@stable
       - run: |
-          sudo apt update && sudo apt install -y libnss-wrapper scdoc
+          sudo apt update && sudo apt install -y libnss-wrapper
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -62,6 +62,9 @@ jobs:
           cargo test
           LD_PRELOAD=libnss_wrapper.so cargo test --features nsswrapper nsswrapper_
 
-      - name: Generate manpage
+      - name: Generate packaging assets
+        env:
+          SOURCE_DATE_EPOCH: 315532800
         run: |
-          scdoc < contrib/man/tuigreet-1.scd > /dev/null
+          cargo xtask man
+          cargo xtask comp
