@@ -20,10 +20,10 @@ numlock = false
 # command = "sway"
 
 # Directories containing Wayland session files
-sessions_dirs = ["/usr/share/wayland-sessions"]
+sessions_dirs = [ "/usr/share/wayland-sessions" ]
 
 # Directories containing X11 session files
-xsessions_dirs = ["/usr/share/xsessions"]
+xsessions_dirs = [ "/usr/share/xsessions" ]
 
 # Wrapper command for non-X11 sessions
 # session_wrapper = "exec"
@@ -104,19 +104,19 @@ status_position = "default"
 # Status bar item visibility
 [layout.widgets.status_bar]
 # Show the ESC/Reset button
-show_reset = true
+show_reset          = true
 # Show the command button (F2)
-show_command = true
+show_command        = true
 # Show the session button (F3)
-show_session = true
+show_session        = true
 # Show the power button (F12)
-show_power = true
+show_power          = true
 # Show the background button (F4)
-show_background = true
+show_background     = true
 # Show the current session/command indicator
 show_session_status = true
 # Show the caps lock indicator
-show_caps_lock = true
+show_caps_lock      = true
 
 [power]
 # Custom shutdown command

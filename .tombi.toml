@@ -1,0 +1,23 @@
+[format.rules]
+array-bracket-space-width       = 1
+key-value-equals-sign-alignment = true
+line-width                      = 110
+trailing-comment-space-width    = 1
+
+[[schemas]]
+path                                    = "tombi://www.schemastore.org/cargo.json"
+include                                 = [ "**/Cargo.toml" ]
+format.rules.array-values-order.enabled = false
+format.rules.table-keys-order.enabled   = false
+
+[[schemas.overrides]]
+targets                       = [
+  "dependencies",
+  "dev-dependencies",
+  "build-dependencies",
+  "workspace.dependencies",
+  "target.*.dependencies",
+  "target.*.dev-dependencies",
+  "target.*.build-dependencies",
+]
+format.rules.table-keys-order = "ascending"

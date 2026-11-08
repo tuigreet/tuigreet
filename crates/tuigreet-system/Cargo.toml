@@ -1,6 +1,6 @@
 [package]
-name         = "tuigreet-system"
-description  = "System output enumeration and terminal sizing for tuigreet"
+name                   = "tuigreet-system"
+description            = "System output enumeration and terminal sizing for tuigreet"
 version.workspace      = true
 edition.workspace      = true
 license.workspace      = true
@@ -10,8 +10,8 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-tuigreet-config = { workspace = true }
 tracing         = { workspace = true }
+tuigreet-config = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

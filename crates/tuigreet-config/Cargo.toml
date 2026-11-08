@@ -1,6 +1,6 @@
 [package]
-name         = "tuigreet-config"
-description  = "Configuration parsing and schema for tuigreet"
+name                   = "tuigreet-config"
+description            = "Configuration parsing and schema for tuigreet"
 version.workspace      = true
 edition.workspace      = true
 license.workspace      = true
@@ -10,10 +10,10 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-jiff               = { workspace = true }
 codespan-reporting = { workspace = true }
 dirs               = { workspace = true }
 flub               = { workspace = true }
+jiff               = { workspace = true }
 pound              = { workspace = true }
 serde              = { workspace = true }
 toml               = { workspace = true }

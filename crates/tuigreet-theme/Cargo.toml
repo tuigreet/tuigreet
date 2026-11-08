@@ -1,6 +1,6 @@
 [package]
-name         = "tuigreet-theme"
-description  = "Theme and styling for tuigreet"
+name                   = "tuigreet-theme"
+description            = "Theme and styling for tuigreet"
 version.workspace      = true
 edition.workspace      = true
 license.workspace      = true
@@ -10,5 +10,5 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-tuigreet-config = { workspace = true }
 tui             = { workspace = true }
+tuigreet-config = { workspace = true }

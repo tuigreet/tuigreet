@@ -15,8 +15,8 @@ name = "tuigreet"
 path = "src/main.rs"
 
 [features]
-default    = [  ]
-nsswrapper = [  ]
+default    = []
+nsswrapper = []
 
 [dependencies]
 tuigreet-config  = { workspace = true }
@@ -27,16 +27,17 @@ tuigreet-types   = { workspace = true }
 
 ansi-to-tui        = { workspace = true }
 caress             = { workspace = true }
-jiff               = { workspace = true }
 crossterm          = { workspace = true }
 dirs               = { workspace = true }
 futures            = { workspace = true }
 greetd_ipc         = { workspace = true }
 i18n-embed         = { workspace = true }
+jiff               = { workspace = true }
 nix                = { workspace = true }
 notify             = { workspace = true }
 pure-rust-locales  = { workspace = true }
 rand               = { workspace = true }
+regex              = { workspace = true }
 rust-ini           = { workspace = true }
 tokio              = { workspace = true }
 toml               = { workspace = true }
@@ -48,8 +49,7 @@ unicode-width      = { workspace = true }
 utmp-rs            = { workspace = true }
 uzers              = { workspace = true }
 zeroize            = { workspace = true }
-regex              = { workspace = true }
 
 [dev-dependencies]
-greetd-stub   = { workspace = true }
-tempfile      = { workspace = true }
+greetd-stub = { workspace = true }
+tempfile    = { workspace = true }
