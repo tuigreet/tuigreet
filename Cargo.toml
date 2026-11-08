@@ -19,7 +19,7 @@ tuigreet-types   = { path = "crates/tuigreet-types", version = "0.11.0" }
 
 # External
 ansi-to-tui = "8.0.1"
-caress = "0.2.1"
+caress = "0.3.0"
 codespan-reporting = "0.13.1"
 crossterm = { version = "0.29.0", features = [ "event-stream" ] }
 dirs = "7.0.0"
@@ -31,7 +31,7 @@ i18n-embed-fl = "0.10.1"
 jiff = { version = "0.2.38", default-features = false, features = [ "std", "tz-system", "tzdb-zoneinfo" ] }
 nix = { version = "0.31.3", features = [ "feature", "ioctl" ] }
 notify = { version = "8.2.0", features = [ "macos_fsevent" ] }
-pound = "0.5.2"
+pound = "0.6.1"
 pure-rust-locales = "0.8.2"
 rand = "0.10.3"
 regex = "1.13.1"
