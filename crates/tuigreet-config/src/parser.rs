@@ -306,6 +306,7 @@ impl Config {
       self.validate_wrappers()?;
     }
     self.validate_outputs(&mut warnings)?;
+    self.validate_session_entries(&mut warnings)?;
     if let Some(reason) = self.terminal.invalid_reason() {
       return Err(ConfigError::Validation(reason));
     }
@@ -468,6 +469,36 @@ impl Config {
       warnings.push(
         "All [[outputs]] entries have `enabled = false`; no output will be \
          used for terminal sizing"
+          .to_string(),
+      );
+    }
+    Ok(())
+  }
+
+  fn validate_session_entries(
+    &self,
+    warnings: &mut Vec<String>,
+  ) -> Result<(), ConfigError> {
+    let entries = &self.session.entries;
+    if entries.iter().any(|entry| entry.path.is_empty()) {
+      return Err(ConfigError::Validation(
+        "session.entries paths must not be empty".to_string(),
+      ));
+    }
+    if let Some((index, entry)) = entries
+      .iter()
+      .enumerate()
+      .find(|(i, a)| entries[..*i].iter().any(|b| b.path == a.path))
+    {
+      return Err(ConfigError::Validation(format!(
+        "session.entries[{index}] duplicates path '{}'",
+        entry.path
+      )));
+    }
+    if !entries.is_empty() && entries.iter().all(|entry| !entry.enabled) {
+      warnings.push(
+        "All [[session.entries]] entries have `enabled = false`; no session \
+         will be displayed"
           .to_string(),
       );
     }
@@ -792,6 +823,33 @@ mod tests {
       matches!(validation_result, Err(ConfigError::DuplicateKeybindings)),
       "Expected DuplicateKeybindings error, got: {validation_result:?}"
     );
+    Ok(())
+  }
+
+  #[test]
+  fn session_entries_are_validated() -> Result<(), ConfigError> {
+    let config: Config = toml::from_str(
+      r#"
+  [[session.entries]]
+  path = "/usr/share/wayland-sessions/sway.desktop"
+
+  [[session.entries]]
+  path = "/usr/share/wayland-sessions/sway.desktop"
+  "#,
+    )?;
+    assert!(matches!(
+      config.validate(false),
+      Err(ConfigError::Validation(_))
+    ));
+
+    let config: Config = toml::from_str(
+      r#"
+  [[session.entries]]
+  path = "/usr/share/xsessions/i3.desktop"
+  enabled = false
+  "#,
+    )?;
+    assert_eq!(config.validate(false)?.len(), 1);
     Ok(())
   }
 

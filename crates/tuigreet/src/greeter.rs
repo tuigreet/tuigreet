@@ -22,6 +22,7 @@ use tuigreet_config::{
   IdleAction,
   IdleConfig,
   KeybindingsConfig,
+  SessionEntry,
   StatusBarConfig,
   ThemeConfig,
 };
@@ -39,6 +40,7 @@ use crate::{
   action::{KeyBinding, bindings_from_config},
   event::Event,
   info::{
+    configured_session_paths,
     get_issue,
     get_last_command,
     get_last_session_path,
@@ -115,6 +117,8 @@ pub struct Greeter {
   pub xsession_wrapper: Option<String>,
   // Default session regex
   pub default_session:  Option<String>,
+  // Visibility, order and names of discovered sessions.
+  pub session_entries:  Vec<SessionEntry>,
 
   // Whether user menu is enabled.
   pub user_menu:    bool,
@@ -208,6 +212,7 @@ impl Default for Greeter {
       session_wrapper:       None,
       xsession_wrapper:      None,
       default_session:       None,
+      session_entries:       Vec::new(),
       user_menu:             false,
       users:                 Menu::default(),
       default_user:          None,
@@ -648,16 +653,6 @@ impl Greeter {
     }
   }
 
-  fn add_session_path(&mut self, path: PathBuf, session_type: SessionType) {
-    if self.session_paths.iter().any(|(known_path, known_type)| {
-      known_path == &path && known_type == &session_type
-    }) {
-      return;
-    }
-
-    self.session_paths.push((path, session_type));
-  }
-
   fn set_power_command(
     &mut self,
     action: PowerOption,
@@ -727,13 +722,7 @@ impl Greeter {
         )
       },
     );
-    self.session_paths.clear();
-    for dir in &config.session.sessions_dirs {
-      self.add_session_path(PathBuf::from(dir), SessionType::Wayland);
-    }
-    for dir in &config.session.xsessions_dirs {
-      self.add_session_path(PathBuf::from(dir), SessionType::X11);
-    }
+    self.session_paths = configured_session_paths(&config.session);
     self
       .session_wrapper
       .clone_from(&config.session.session_wrapper);
@@ -743,6 +732,7 @@ impl Greeter {
     self
       .default_session
       .clone_from(&config.session.default_session);
+    self.session_entries.clone_from(&config.session.entries);
     // Display
     self.time = config.display.show_time;
     self.time_format.clone_from(&config.display.time_format);
