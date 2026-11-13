@@ -1,3 +1,5 @@
+toml-version = "v1.0.0"
+
 [format.rules]
 array-bracket-space-width       = 1
 key-value-equals-sign-alignment = true
@@ -5,6 +7,7 @@ line-width                      = 110
 trailing-comment-space-width    = 1
 
 [[schemas]]
+toml-version                            = "v1.0.0"
 path                                    = "tombi://www.schemastore.org/cargo.json"
 include                                 = [ "**/Cargo.toml" ]
 format.rules.array-values-order.enabled = false
