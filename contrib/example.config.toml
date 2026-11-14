@@ -34,6 +34,14 @@ xsessions_dirs = [ "/usr/share/xsessions" ]
 # Environment variables for default session
 # environments = ["XDG_CURRENT_DESKTOP=sway", "XDG_SESSION_TYPE=wayland"]
 
+# Sessions to display in the session menu. When any entry is configured, only
+# enabled entries are displayed. Generate a template with `--show-all-sessions`.
+# [[session.entries]]
+# path = "/usr/share/wayland-sessions/sway.desktop"
+# name = "Sway"     # Name to display instead of the desktop file's Name
+# enabled = true    # Whether the session is displayed
+# order = 0         # Display order, lower values are displayed first
+
 [display]
 # Show current time
 show_time = false

@@ -39,6 +39,10 @@ pub struct Cli {
   #[pound(long)]
   pub dump_config: bool,
 
+  /// print discovered sessions as a configuration template and exit
+  #[pound(long)]
+  pub show_all_sessions: bool,
+
   /// list available DRM outputs and exit
   #[pound(long, exclusive)]
   pub list_outputs: bool,
