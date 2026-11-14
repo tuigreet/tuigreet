@@ -1,4 +1,11 @@
-use std::{borrow::Cow, error::Error, sync::Arc};
+use std::{
+  borrow::Cow,
+  error::Error,
+  sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+  },
+};
 
 use greetd_ipc::{
   AuthMessageType,
@@ -28,8 +35,9 @@ pub struct Ipc(Arc<IpcHandle>);
 
 /// Internal IPC channel handle.
 pub struct IpcHandle {
-  tx: RwLock<Sender<Request>>,
-  rx: Mutex<Receiver<Request>>,
+  tx:                   RwLock<Sender<Request>>,
+  rx:                   Mutex<Receiver<Request>>,
+  auth_input_submitted: AtomicBool,
 }
 
 impl Ipc {
@@ -38,8 +46,9 @@ impl Ipc {
     let (tx, rx) = mpsc::channel::<Request>(10);
 
     Self(Arc::new(IpcHandle {
-      tx: RwLock::new(tx),
-      rx: Mutex::new(rx),
+      tx:                   RwLock::new(tx),
+      rx:                   Mutex::new(rx),
+      auth_input_submitted: AtomicBool::new(false),
     }))
   }
 
@@ -92,7 +101,7 @@ impl Ipc {
       };
 
       self
-        .parse_response(&mut *greeter.write().await, response)
+        .parse_response(&mut *greeter.write().await, &request, response)
         .await?;
     }
 
@@ -102,8 +111,19 @@ impl Ipc {
   async fn parse_response(
     &self,
     greeter: &mut Greeter,
+    request: &Request,
     response: Response,
   ) -> Result<(), Box<dyn Error>> {
+    match request {
+      Request::CreateSession { .. } => {
+        self.0.auth_input_submitted.store(false, Ordering::Relaxed);
+      },
+      Request::PostAuthMessageResponse { response: Some(_) } => {
+        self.0.auth_input_submitted.store(true, Ordering::Relaxed);
+      },
+      _ => {},
+    }
+
     // XXX: Do not display actual message from greetd, which may contain entered
     // information, sometimes passwords.
     match response {
@@ -241,17 +261,26 @@ impl Ipc {
         // entered information, sometimes passwords.
         tracing::info!("received an error from greetd: {error_type:?}");
 
-        Self::cancel(greeter).await;
-
         match error_type {
           ErrorType::AuthError => {
             greeter.message = Some(fl!("failed"));
-            self
-              .send(Request::CreateSession {
-                username: greeter.username.value.clone(),
-              })
-              .await;
-            greeter.reset(true).await;
+
+            let had_user_input =
+              self.0.auth_input_submitted.swap(false, Ordering::Relaxed);
+            let should_retry =
+              matches!(request, Request::PostAuthMessageResponse { .. })
+                && had_user_input;
+
+            if should_retry {
+              self
+                .send(Request::CreateSession {
+                  username: greeter.username.value.clone(),
+                })
+                .await;
+              greeter.reset(true).await;
+            } else {
+              greeter.reset(false).await;
+            }
           },
 
           ErrorType::Error => {
@@ -365,14 +394,90 @@ fn wrap_session_command<'a>(
 
 #[cfg(test)]
 mod test {
-  use std::path::PathBuf;
+  use std::{error::Error, io, path::PathBuf};
 
-  use super::wrap_session_command;
+  use greetd_ipc::{AuthMessageType, ErrorType, Request, Response};
+  use tuigreet_types::Mode;
+
+  use super::{
+    DefaultCommand,
+    Ipc,
+    desktop_names_to_xdg,
+    wrap_session_command,
+  };
   use crate::{
     Greeter,
-    ipc::{DefaultCommand, desktop_names_to_xdg},
     ui::sessions::{Session, SessionType},
   };
+
+  #[tokio::test]
+  async fn auth_error_before_prompt_returns_to_username()
+  -> Result<(), Box<dyn Error>> {
+    let ipc = Ipc::new();
+    let mut greeter = Greeter::default();
+    greeter.mock = true;
+    greeter.username.value = "broken".to_string();
+
+    ipc
+      .parse_response(
+        &mut greeter,
+        &Request::CreateSession {
+          username: "broken".to_string(),
+        },
+        Response::Error {
+          error_type:  ErrorType::AuthError,
+          description: "Authentication failed".to_string(),
+        },
+      )
+      .await?;
+
+    assert_eq!(greeter.mode, Mode::Username);
+    assert!(ipc.0.rx.lock().await.try_recv().is_err());
+
+    Ok(())
+  }
+
+  #[tokio::test]
+  async fn auth_error_after_automatic_message_returns_to_username()
+  -> Result<(), Box<dyn Error>> {
+    let ipc = Ipc::new();
+    let mut greeter = Greeter::default();
+    greeter.mock = true;
+    greeter.username.value = "broken".to_string();
+
+    ipc
+      .parse_response(
+        &mut greeter,
+        &Request::CreateSession {
+          username: "broken".to_string(),
+        },
+        Response::AuthMessage {
+          auth_message_type: AuthMessageType::Info,
+          auth_message:      "Checking account".to_string(),
+        },
+      )
+      .await?;
+
+    let request = ipc
+      .next()
+      .await
+      .ok_or_else(|| io::Error::other("automatic response was not queued"))?;
+    assert!(matches!(&request, Request::PostAuthMessageResponse {
+      response: None,
+    }));
+
+    ipc
+      .parse_response(&mut greeter, &request, Response::Error {
+        error_type:  ErrorType::AuthError,
+        description: "Authentication failed".to_string(),
+      })
+      .await?;
+
+    assert_eq!(greeter.mode, Mode::Username);
+    assert!(ipc.0.rx.lock().await.try_recv().is_err());
+
+    Ok(())
+  }
 
   #[test]
   fn wayland_no_wrapper() {
