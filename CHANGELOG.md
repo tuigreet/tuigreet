@@ -9,8 +9,13 @@
 - `[power] suspend` and `[power] hibernate` configuration keys, plus the
   `--power-suspend` and `--power-hibernate` command-line options, allow
   overriding those actions.
-- When user-menu filtering leaves exactly one eligible user, tuigreet now
-  selects that user and begins session creation automatically.
+- Runtime shell-completion requests are now supported. `cargo xtask comp` also
+  generates shell completion scripts for packagers.
+- `--default-session` accepts a regular expression matching the session path;
+  the same setting is available as `[session] default_session` and
+  `TUIGREET_DEFAULT_SESSION`.
+- Num Lock can be enabled at startup with `--numlock`, `[general] numlock`, or
+  `TUIGREET_NUMLOCK`.
 
 ### Changed
 
@@ -22,6 +27,14 @@
   overrides as initial startup.
 - Higher-priority configuration files can now explicitly restore a setting to
   its default value, such as `show_time = false` or `width = 80`.
+- Boolean command-line options now accept `--no-*` forms to disable values set
+  by configuration, such as `--no-time`.
+- Numeric command-line options now reject values outside their supported ranges,
+  including layout and background-animation settings.
+- Configuration validation now rejects malformed `[session] environments`
+  entries and conflicting `remember.session` / `remember.user_session` settings.
+- The default user-menu UID range now follows `UID_MIN` and `UID_MAX` from
+  `/etc/login.defs` unless overridden in configuration.
 
 ### Fixed
 
@@ -32,6 +45,14 @@
 - Explicit `secret.mode = "hidden"` and the legacy `display.asterisks = false`
   setting now correctly override lower-priority configuration layers.
 - `[general] debug` and `log_file` now configure logging during startup.
+- Failed automatic authentication responses now return to the username prompt
+  instead of starting another authentication attempt.
+- When a remembered user is enabled alongside a one-user menu, tuigreet no
+  longer submits duplicate session-creation requests.
+- Unicode input editing remains correct for long buffers beyond the 16-bit
+  cursor range.
+- Empty secret-display character pools are rejected with an error instead of
+  causing a rendering panic.
 - Constrained terminal sizes and narrow layouts no longer trigger unsigned
   arithmetic overflows while rendering.
 - Corrected the documented names of several configuration environment variables.
