@@ -33,7 +33,7 @@ use crossterm::terminal::{
   enable_raw_mode,
 };
 use crossterm::{
-  cursor::Hide,
+  cursor::{Hide, Show},
   execute,
   terminal::{LeaveAlternateScreen, disable_raw_mode},
 };
@@ -189,6 +189,29 @@ fn print_version() -> io::Result<()> {
   )
 }
 
+#[cfg(not(test))]
+#[derive(Default)]
+struct TerminalCleanup {
+  hide_cursor: bool,
+}
+
+#[cfg(not(test))]
+impl Drop for TerminalCleanup {
+  fn drop(&mut self) {
+    restore_terminal(self.hide_cursor);
+  }
+}
+
+fn restore_terminal(hide_cursor: bool) {
+  let _ = execute!(io::stdout(), LeaveAlternateScreen);
+  if hide_cursor {
+    let _ = execute!(io::stdout(), Hide);
+  } else {
+    let _ = execute!(io::stdout(), Show);
+  }
+  let _ = disable_raw_mode();
+}
+
 async fn run<B>(
   backend: B,
   mut greeter: Greeter,
@@ -204,6 +227,9 @@ where
   if greeter.numlock {
     enable_numlock();
   }
+
+  #[cfg(not(test))]
+  let mut terminal_cleanup = TerminalCleanup::default();
 
   #[cfg(not(test))]
   {
@@ -232,7 +258,13 @@ where
     start_config_watcher(cli, Arc::clone(&greeter), events.sender());
 
   spawn_ipc_handler(Arc::clone(&greeter), ipc.clone(), events.sender());
-  run_event_loop(terminal, greeter, ipc, &mut events).await
+  let result = run_event_loop(terminal, greeter, ipc, &mut events).await;
+  #[cfg(not(test))]
+  {
+    terminal_cleanup.hide_cursor = result.is_ok()
+      || result.as_ref().is_err_and(|error| error.is::<AuthStatus>());
+  }
+  result
 }
 
 async fn start_initial_session(greeter: &mut Greeter, ipc: &Ipc) {
@@ -411,8 +443,7 @@ async fn exit(greeter: &mut Greeter, status: AuthStatus) {
   #[cfg(not(test))]
   clear_screen();
 
-  let _ = execute!(io::stdout(), LeaveAlternateScreen, Hide);
-  let _ = disable_raw_mode();
+  restore_terminal(true);
 
   greeter.exit = Some(status);
 }
@@ -445,8 +476,7 @@ fn register_panic_handler() {
     #[cfg(not(test))]
     clear_screen();
 
-    let _ = execute!(io::stdout(), LeaveAlternateScreen, Hide);
-    let _ = disable_raw_mode();
+    restore_terminal(true);
 
     hook(info);
   }));

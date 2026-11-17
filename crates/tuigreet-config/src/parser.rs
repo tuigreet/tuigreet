@@ -4,6 +4,7 @@ use std::{
   fs,
   io::{self, Write},
   path::{Path, PathBuf},
+  time::{Duration, Instant},
 };
 
 use codespan_reporting::{
@@ -302,6 +303,7 @@ impl Config {
     self.validate_layout()?;
     self.validate_keybindings()?;
     self.validate_time_format()?;
+    self.validate_idle_timeout()?;
     if validate_wrappers {
       self.validate_wrappers()?;
     }
@@ -414,6 +416,20 @@ impl Config {
           binding.action
         )));
       }
+    }
+    Ok(())
+  }
+
+  fn validate_idle_timeout(&self) -> Result<(), ConfigError> {
+    if Instant::now()
+      .checked_add(Duration::from_secs(self.idle.timeout_seconds))
+      .is_none()
+    {
+      return Err(ConfigError::Validation(
+        "idle.timeout_seconds is too large for the system clock; reduce the \
+         timeout or set it to 0 to disable idle handling"
+          .to_string(),
+      ));
     }
     Ok(())
   }
@@ -1173,6 +1189,20 @@ mod tests {
     assert!(matches!(
       config.validate(false),
       Err(ConfigError::Validation(message)) if message.contains("duplicate custom keybinding")
+    ));
+    Ok(())
+  }
+
+  #[test]
+  fn rejects_idle_timeouts_the_system_clock_cannot_represent()
+  -> Result<(), ConfigError> {
+    let config: Config =
+      toml::from_str("[idle]\ntimeout_seconds = 9223372036854775807\n")?;
+
+    assert!(matches!(
+      config.validate(false),
+      Err(ConfigError::Validation(message))
+        if message.contains("idle.timeout_seconds") && message.contains("too large")
     ));
     Ok(())
   }

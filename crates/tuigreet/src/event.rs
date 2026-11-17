@@ -123,7 +123,17 @@ async fn run_events(
 
   loop {
     let idle_enabled = idle_timeout > 0 && !idle_sent;
-    let idle_deadline = last_activity + Duration::from_secs(idle_timeout);
+    let Some(idle_deadline) =
+      last_activity.checked_add(Duration::from_secs(idle_timeout))
+    else {
+      let error = io::Error::new(
+        io::ErrorKind::InvalidInput,
+        "idle.timeout_seconds is too large for the system clock; reduce the \
+         timeout",
+      );
+      let _ = send_event(&tx, Event::InputError(error)).await;
+      break;
+    };
 
     tokio::select! {
       event = stream.next().fuse() => {
@@ -242,6 +252,24 @@ mod tests {
     events.set_idle_timeout(1);
     assert!(!wait_for_idle(&mut events, Duration::from_millis(500)).await);
     assert!(wait_for_idle(&mut events, Duration::from_millis(700)).await);
+  }
+
+  #[tokio::test]
+  async fn unrepresentable_idle_timeout_is_reported_as_an_error()
+  -> io::Result<()> {
+    let mut events = Events::new();
+    events.set_idle_timeout(u64::MAX);
+    events.start();
+
+    let event = timeout(Duration::from_millis(500), events.next())
+      .await
+      .map_err(io::Error::other)?;
+    let Some(Event::InputError(error)) = event else {
+      return Err(io::Error::other("invalid idle timeout was not reported"));
+    };
+    assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+    assert!(error.to_string().contains("idle.timeout_seconds"));
+    Ok(())
   }
 
   #[tokio::test]
