@@ -272,14 +272,15 @@ impl Ipc {
                 && had_user_input;
 
             if should_retry {
+              greeter.reset_authentication(true);
+              greeter.working = true;
               self
                 .send(Request::CreateSession {
                   username: greeter.username.value.clone(),
                 })
                 .await;
-              greeter.reset(true).await;
             } else {
-              greeter.reset(false).await;
+              greeter.reset_authentication(false);
             }
           },
 

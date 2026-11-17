@@ -387,6 +387,12 @@ impl Greeter {
 
   // Reset the software to its initial state.
   pub async fn reset(&mut self, soft: bool) {
+    self.reset_authentication(soft);
+    self.connect().await;
+  }
+
+  /// Reset authentication state while keeping the current greetd connection.
+  pub fn reset_authentication(&mut self, soft: bool) {
     if soft {
       self.mode = Mode::Password;
       self.previous_mode = Mode::Password;
@@ -399,7 +405,6 @@ impl Greeter {
     self.done = false;
 
     self.scrub(false, soft);
-    self.connect().await;
   }
 
   // Connect to `greetd` and return a stream we can safely write to.
