@@ -1,0 +1,6 @@
+# i18n-config 0.4.8 uses basic-toml to parse checked-in localization metadata
+# during procedural macro expansion. No maintained upstream replacement is
+# published. RUSTSEC-2026-0374 reports maintenance status, not a vulnerability;
+# retain this build-time dependency until i18n-config replaces its parser.
+[advisories]
+ignore = [ "RUSTSEC-2026-0374" ]
