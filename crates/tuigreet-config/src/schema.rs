@@ -967,8 +967,10 @@ fn parse_binding_key(part: &str) -> Result<BindingKey, KeyChordParseError> {
     return Ok(BindingKey::Named(key));
   }
 
-  if let Some(number) =
-    part.strip_prefix('f').or_else(|| part.strip_prefix('F'))
+  if let Some(number) = part
+    .strip_prefix('f')
+    .or_else(|| part.strip_prefix('F'))
+    .filter(|number| !number.is_empty())
   {
     let number = number
       .parse::<u8>()
@@ -1273,6 +1275,30 @@ mod tests {
     assert_eq!(control.to_string(), "Ctrl+b");
     assert_eq!(backtab, shifted_tab);
     assert_eq!(shifted_tab.to_string(), "BackTab");
+    Ok(())
+  }
+
+  #[test]
+  fn f_character_chords_are_distinct_from_function_keys()
+  -> Result<(), KeyChordParseError> {
+    let control: KeyChord = "Ctrl+f".parse()?;
+    let alt: KeyChord = "Alt+F".parse()?;
+    let function: KeyChord = "Ctrl+F1".parse()?;
+
+    assert_eq!(control.key(), BindingKey::Character('f'));
+    assert!(control.control());
+    assert_eq!(alt.key(), BindingKey::Character('f'));
+    assert!(alt.alt());
+    assert_eq!(function.key(), BindingKey::Function(1));
+    assert!(function.control());
+    assert_eq!(
+      "f".parse::<KeyChord>(),
+      Err(KeyChordParseError::UnmodifiedCharacter)
+    );
+    assert_eq!(
+      "Ctrl+F0".parse::<KeyChord>(),
+      Err(KeyChordParseError::InvalidFunctionKey)
+    );
     Ok(())
   }
 
