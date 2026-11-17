@@ -1,9 +1,15 @@
 use std::{error::Error, sync::Arc};
 
 use tokio::sync::RwLock;
-use tui::{Terminal, buffer::Buffer, layout::Rect, style::Color};
+use tui::{
+  Terminal,
+  backend::{Backend, TestBackend as BufferBackend},
+  buffer::Buffer,
+  layout::Rect,
+  style::Color,
+};
 use tuigreet_config::{Config, PromptAnchor, RegionItem, WidgetPosition};
-use tuigreet_types::Mode;
+use tuigreet_types::{Mode, SecretDisplay};
 
 use crate::{Greeter, integration::common::backend::TestBackend, ui};
 
@@ -739,24 +745,146 @@ async fn blank_idle_policy_hides_and_restores_the_interface()
 }
 
 #[tokio::test]
-async fn revealed_password_is_rendered_with_a_warning()
+async fn revealed_hidden_password_tracks_the_editing_cursor()
 -> Result<(), Box<dyn Error>> {
   let greeter = test_greeter();
   {
     let mut state = greeter.write().await;
     state.mode = Mode::Password;
     state.asking_for_secret = true;
+    state.secret_display = SecretDisplay::Hidden;
     state.buffer = "hunter2".to_string();
+    state.cursor_offset = -3;
     state.set_prompt("Password:");
-    state.toggle_secret_visibility();
   }
 
-  let buffer = render_ui(greeter, 100, 24).await?;
-  let screen = (0..24)
-    .map(|y| get_line(&buffer, y, 100))
-    .collect::<Vec<_>>()
-    .join("\n");
-  assert!(screen.contains("hunter2"));
-  assert!(screen.contains("PASSWORD VISIBLE"));
+  let (backend, buffer, _rx) = TestBackend::new(100, 24);
+  let mut terminal = Terminal::new(backend)?;
+  ui::draw(Arc::clone(&greeter), &mut terminal).await?;
+  let hidden_cursor = terminal.backend_mut().get_cursor_position()?;
+  {
+    let hidden = buffer.lock().map_err(|_| "render buffer was poisoned")?;
+    assert!((0..24).all(|y| !get_line(&hidden, y, 100).contains("hunter2")));
+  }
+
+  greeter.write().await.toggle_secret_visibility();
+  ui::draw(Arc::clone(&greeter), &mut terminal).await?;
+  let revealed_cursor = terminal.backend_mut().get_cursor_position()?;
+  let answer_start = {
+    let rendered = buffer.lock().map_err(|_| "render buffer was poisoned")?;
+    let answer_start = (0..=100 - 7)
+      .find(|&x| {
+        ["h", "u", "n", "t", "e", "r", "2"]
+          .into_iter()
+          .zip(x..)
+          .all(|(symbol, column)| {
+            rendered[(column, revealed_cursor.y)].symbol() == symbol
+          })
+      })
+      .ok_or("password was not revealed")?;
+    assert_eq!(hidden_cursor.x, answer_start);
+    assert_eq!(hidden_cursor.y, revealed_cursor.y);
+    assert_eq!(revealed_cursor.x, answer_start + 4);
+    assert_eq!(
+      rendered[(revealed_cursor.x, revealed_cursor.y)].symbol(),
+      "e"
+    );
+    assert!(
+      (0..24)
+        .any(|y| { get_line(&rendered, y, 100).contains("PASSWORD VISIBLE") })
+    );
+    drop(rendered);
+    answer_start
+  };
+
+  greeter.write().await.cursor_offset = -6;
+  ui::draw(greeter, &mut terminal).await?;
+  let edited_cursor = terminal.backend_mut().get_cursor_position()?;
+  assert_eq!(edited_cursor.x, answer_start + 1);
+  assert_eq!(edited_cursor.y, revealed_cursor.y);
+  let rendered = buffer.lock().map_err(|_| "render buffer was poisoned")?;
+  assert_eq!(rendered[(edited_cursor.x, edited_cursor.y)].symbol(), "u");
+  drop(rendered);
+  Ok(())
+}
+
+#[test]
+fn clipped_forms_hide_the_cursor_when_no_input_cells_fit()
+-> Result<(), Box<dyn Error>> {
+  for mode in [Mode::Username, Mode::Password] {
+    for (padding, margin) in [(2, 0), (10, u16::MAX), (u16::MAX, u16::MAX)] {
+      for (width, height) in [(80, 4), (1, 1), (0, 0), (80, 0), (0, 4)] {
+        let mut greeter = Greeter::default();
+        let mut config = Config::default();
+        config.layout.container_padding = Some(padding);
+        config.layout.prompt_padding = Some(u16::MAX);
+        config.layout.prompt.edge_margin = margin;
+        greeter.apply_config(config);
+        greeter.mode = mode;
+        greeter.prompt = Some("Password: ".to_string());
+        greeter.username.value = "alice".to_string();
+        greeter.buffer = "hunter2".to_string();
+        let area = Rect::new(10, 5, width, height);
+        let backend = BufferBackend::new(100, 24);
+        let mut terminal = Terminal::new(backend)?;
+        let mut result = Ok(None);
+        terminal.draw(|frame| {
+          result = ui::prompt::draw_with_area(&mut greeter, frame, area);
+        })?;
+
+        assert_eq!(result?, None, "{mode:?}, padding {padding}, {area:?}");
+        let rendered = terminal.backend().buffer();
+        for y in 0..24 {
+          for x in 0..100 {
+            if !area.contains((x, y).into()) {
+              assert_eq!(rendered[(x, y)].symbol(), " ");
+            }
+          }
+        }
+      }
+    }
+  }
+  Ok(())
+}
+
+#[test]
+fn input_and_cursor_stay_inside_the_padded_container()
+-> Result<(), Box<dyn Error>> {
+  for mode in [Mode::Username, Mode::Password] {
+    let mut greeter = Greeter::default();
+    let mut config = Config::default();
+    config.layout.width = 30;
+    config.layout.container_padding = Some(3);
+    greeter.apply_config(config);
+    greeter.mode = mode;
+    greeter.prompt = Some("Password: ".to_string());
+    greeter.username.value = "x".repeat(70_000);
+    greeter.buffer = "x".repeat(70_000);
+    let area = Rect::new(5, 3, 80, 20);
+    let (x, y, width, height) = ui::util::get_rect_bounds(&greeter, area, 0);
+    let inner = ui::util::get_inner_area(
+      Rect::new(x, y, width, height),
+      greeter.container_padding(),
+    );
+    let backend = BufferBackend::new(100, 24);
+    let mut terminal = Terminal::new(backend)?;
+    let mut result = Ok(None);
+    terminal.draw(|frame| {
+      result = ui::prompt::draw_with_area(&mut greeter, frame, area);
+    })?;
+
+    let cursor = result?.ok_or("visible input did not provide a cursor")?;
+    assert_eq!(cursor.0, inner.right());
+    assert!(inner.contains((cursor.0 - 1, cursor.1 - 1).into()));
+    let rendered = terminal.backend().buffer();
+    assert_eq!(rendered[(cursor.0 - 1, cursor.1 - 1)].symbol(), "x");
+    for row in 0..24 {
+      for column in 0..100 {
+        if rendered[(column, row)].symbol() == "x" {
+          assert!(inner.contains((column, row).into()));
+        }
+      }
+    }
+  }
   Ok(())
 }

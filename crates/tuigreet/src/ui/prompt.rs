@@ -19,7 +19,9 @@ use crate::{
     util::{
       get_cursor_offset,
       get_greeting_height,
-      get_input_width,
+      get_inner_area,
+      get_input_area,
+      get_input_cursor,
       get_message_height,
       get_rect_bounds,
       titleize,
@@ -30,14 +32,12 @@ use crate::{
 const GREETING_INDEX: usize = 0;
 const USERNAME_INDEX: usize = 1;
 const ANSWER_INDEX: usize = 3;
-const USERNAME_ROW: u16 = 1;
-const ANSWER_ROW: u16 = 3;
 
 pub fn draw_with_area(
   greeter: &mut Greeter,
   f: &mut Frame,
   area: Rect,
-) -> Result<(u16, u16), Box<dyn Error>> {
+) -> Result<Option<(u16, u16)>, Box<dyn Error>> {
   let theme = &greeter.theme;
 
   let size = area;
@@ -52,12 +52,7 @@ pub fn draw_with_area(
   };
 
   let container = Rect::new(x, y, width, height);
-  let frame = Rect::new(
-    x + container_padding,
-    y + container_padding,
-    width - (2 * container_padding),
-    height - (2 * container_padding),
-  );
+  let frame = get_inner_area(container, container_padding);
 
   // Wipe any animation pixels from the container area before drawing the
   // prompt; ratatui's Block patches style only and would leave the fire
@@ -106,7 +101,6 @@ pub fn draw_with_area(
     .direction(Direction::Vertical)
     .constraints(constraints.as_ref())
     .split(frame);
-  let cursor = chunks[USERNAME_INDEX];
 
   if let Some(greeting) = greeting {
     let greeting_label = greeting
@@ -119,9 +113,12 @@ pub fn draw_with_area(
   let username_label_text = fl!("username");
   let username_label_width =
     u16::try_from(username_label_text.chars().count())?;
-  let username_input_width =
-    get_input_width(greeter, width, Some(&username_label_text));
   let prompt_width = u16::try_from(greeter.prompt_width())?;
+  let username_input = get_input_area(
+    chunks[USERNAME_INDEX],
+    username_label_width.saturating_add(1),
+  );
+  let answer_input = get_input_area(chunks[ANSWER_INDEX], prompt_width);
   let username_label = if greeter.user_menu && greeter.username.value.is_empty()
   {
     let prompt_text = Span::from(fl!("select_user"));
@@ -143,15 +140,7 @@ pub fn draw_with_area(
       f.render_widget(username_label, chunks[USERNAME_INDEX]);
 
       if !greeter.user_menu || !greeter.username.value.is_empty() {
-        f.render_widget(
-          username_value,
-          Rect::new(
-            1 + chunks[USERNAME_INDEX].x + username_label_width,
-            chunks[USERNAME_INDEX].y,
-            username_input_width,
-            1,
-          ),
-        );
+        f.render_widget(username_value, username_input);
       }
 
       let answer_text = if greeter.working {
@@ -178,15 +167,7 @@ pub fn draw_with_area(
           let answer_value =
             Paragraph::new(answer_value_text).style(theme.of(&[Themed::Input]));
 
-          f.render_widget(
-            answer_value,
-            Rect::new(
-              chunks[ANSWER_INDEX].x + prompt_width,
-              chunks[ANSWER_INDEX].y,
-              get_input_width(greeter, width, greeter.prompt.as_deref()),
-              1,
-            ),
-          );
+          f.render_widget(answer_value, answer_input);
 
           if greeter.asking_for_secret && greeter.is_secret_revealed() {
             let warning = Paragraph::new(fl!("status_password_visible"))
@@ -208,7 +189,8 @@ pub fn draw_with_area(
 
         f.render_widget(
           message,
-          Rect::new(x, y + height, width, message_height),
+          Rect::new(x, y.saturating_add(height), width, message_height)
+            .intersection(area),
         );
       }
     },
@@ -219,32 +201,25 @@ pub fn draw_with_area(
   match greeter.mode {
     Mode::Username => {
       let username_length = greeter.username.get().chars().count();
-      let offset = u16::try_from(get_cursor_offset(greeter, username_length)?)?;
+      let offset = get_cursor_offset(greeter, username_length)?;
 
-      Ok((
-        2 + cursor.x + username_label_width + offset,
-        USERNAME_ROW + cursor.y,
-      ))
+      Ok(get_input_cursor(username_input, offset))
     },
 
     Mode::Password => {
       let answer_length = greeter.buffer.chars().count();
-      let offset = u16::try_from(get_cursor_offset(greeter, answer_length)?)?;
+      let offset = get_cursor_offset(greeter, answer_length)?;
+      let hidden = greeter.asking_for_secret
+        && !greeter.secret_display.show()
+        && !greeter.is_secret_revealed();
 
-      if greeter.asking_for_secret && !greeter.secret_display.show() {
-        Ok((
-          1 + cursor.x + prompt_width,
-          ANSWER_ROW + prompt_padding + cursor.y - 1,
-        ))
-      } else {
-        Ok((
-          1 + cursor.x + prompt_width + offset,
-          ANSWER_ROW + prompt_padding + cursor.y - 1,
-        ))
-      }
+      Ok(get_input_cursor(
+        answer_input,
+        if hidden { 0 } else { offset },
+      ))
     },
 
-    _ => Ok((1, 1)),
+    _ => Ok(None),
   }
 }
 

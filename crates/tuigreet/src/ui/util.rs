@@ -156,20 +156,36 @@ fn offset_coordinate(base: u16, offset: i16, min: u16, max: u16) -> u16 {
   u16::try_from(shifted.clamp(i32::from(min), i32::from(max))).unwrap_or(min)
 }
 
-// Computes the size of a text entry, from the container width and, if
-// applicable, the prompt length.
-pub fn get_input_width(
-  greeter: &Greeter,
-  width: u16,
-  label: Option<&str>,
-) -> u16 {
-  let width = greeter.width().min(width);
+pub fn get_inner_area(area: Rect, padding: u16) -> Rect {
+  Rect::new(
+    area.x.saturating_add(padding.min(area.width)),
+    area.y.saturating_add(padding.min(area.height)),
+    area.width.saturating_sub(padding.saturating_mul(2)),
+    area.height.saturating_sub(padding.saturating_mul(2)),
+  )
+}
 
-  let label_width = label.map_or(0, |label| label.chars().count());
+pub fn get_input_area(row: Rect, label_width: u16) -> Rect {
+  let label_width = label_width.min(row.width);
+  Rect::new(
+    row.x.saturating_add(label_width),
+    row.y,
+    row.width.saturating_sub(label_width),
+    row.height,
+  )
+}
 
-  width
-    .saturating_sub(u16::try_from(label_width).unwrap_or(u16::MAX))
-    .saturating_sub(5)
+pub fn get_input_cursor(area: Rect, offset: usize) -> Option<(u16, u16)> {
+  if area.is_empty() {
+    return None;
+  }
+  let offset = u16::try_from(offset)
+    .unwrap_or(u16::MAX)
+    .min(area.width - 1);
+  Some((
+    area.x.saturating_add(offset).saturating_add(1),
+    area.y.saturating_add(1),
+  ))
 }
 
 pub fn get_cursor_offset(
@@ -243,7 +259,7 @@ mod test {
   use tuigreet_config::Config;
   use tuigreet_types::Mode;
 
-  use super::{get_input_width, get_rect_bounds};
+  use super::get_rect_bounds;
   use crate::{
     Greeter,
     ui::util::{get_greeting_height, get_height},
@@ -267,7 +283,6 @@ mod test {
   fn tiny_width_has_no_underflow() {
     let mut greeter = Greeter::default();
     greeter.apply_config(Config::default());
-    assert_eq!(get_input_width(&greeter, 1, Some("Username")), 0);
     assert_eq!(
       get_rect_bounds(&greeter, Rect::new(0, 0, 1, 1), 0),
       (0, 0, 1, 1)
@@ -393,19 +408,6 @@ mod test {
     assert_eq!(y, 46); // (100 - 8) / 2, not (100 - 5) / 2 = 47
     assert_eq!(width, 80);
     assert_eq!(height, 5);
-  }
-
-  #[test]
-  fn input_width() {
-    let mut greeter = Greeter::default();
-    let mut config = Config::default();
-    config.layout.width = 40;
-    config.layout.container_padding = Some(1);
-    greeter.apply_config(config);
-
-    let input_width = get_input_width(&greeter, 40, Some("Username:"));
-
-    assert_eq!(input_width, 26);
   }
 
   #[test]

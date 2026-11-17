@@ -115,11 +115,19 @@ fn draw_main_content(
     Mode::Processing => {
       Some(self::processing::draw_with_area(greeter, f, area))
     },
-    _ => self::prompt::draw_with_area(greeter, f, area).ok(),
+    _ => {
+      self::prompt::draw_with_area(greeter, f, area)
+        .ok()
+        .flatten()
+    },
   };
 
-  if !hide_cursor && let Some(cursor) = cursor {
-    f.set_cursor_position((cursor.0 - 1, cursor.1 - 1));
+  if !hide_cursor
+    && let Some((x, y)) = cursor
+    && let (Some(x), Some(y)) = (x.checked_sub(1), y.checked_sub(1))
+    && area.contains((x, y).into())
+  {
+    f.set_cursor_position((x, y));
   }
 }
 
