@@ -39,9 +39,9 @@ the `*-padding` options.
 You can instruct `tuigreet` to remember the last username that successfully
 opened a session with the `--remember` option (that way, the username field will
 be pre-filled). Use `--remember-session` to retain the selected desktop session
-between runs; that selection overrides `--cmd`. To remember desktop sessions
-per user, use `--remember-user-session`. Per-user selections are saved only
-after successful authentication.
+between runs; that selection overrides `--cmd`. To remember desktop sessions per
+user, use `--remember-user-session`. Per-user selections are saved only after
+successful authentication.
 
 Press `F3` to choose from the configured desktop sessions. Power options are
 available through `F12`.
@@ -85,17 +85,18 @@ with that kind's default options. The hotkey is configurable through
 There are various methods of installing Tuigreet, and you're recommended to pick
 the appropriate method for your distribution or preferred package manager. We
 provide pre-built binaries for tagged releases, which can be obtained from the
-[releases tab]. Tuigreet is also available through the official Arch Linux repositories and Nix via
-flakes. If none of those interest you, you may build from source. Should you
-wish to package this for your distribution, please do, and submit a pull
-request to update the readme with per-distribution instructions. We will be
-happy to review :)
+[releases tab]. Tuigreet is also available through the official Arch Linux
+repositories and Nix via flakes. If none of those interest you, you may build
+from source. Should you wish to package this for your distribution, please do,
+and submit a pull request to update the readme with per-distribution
+instructions. We will be happy to review :)
 
 ### From the Arch Linux repositories
 
 [official Arch Linux package]: https://archlinux.org/packages/extra/x86_64/greetd-tuigreet
 
-On Arch Linux, greetd-tuigreet is available from the official Arch Linux repositories and can be installed with:
+On Arch Linux, greetd-tuigreet is available from the official Arch Linux
+repositories and can be installed with:
 
 ```bash
 sudo pacman -S greetd-tuigreet
@@ -141,7 +142,7 @@ example, you may create an overlay to override `pkgs.tuigreet` as follows:
   (final: prev: {
     tuigreet = prev.tuigreet.overrideAttrs (
       finalAttrs: prevAttrs: {
-        version = "0.11.0"; # remember to update this version!
+        version = "0.12.0"; # remember to update this version!
 
         src = final.fetchFromGitHub {
           inherit (prevAttrs.src) repo;
@@ -168,9 +169,9 @@ described above.
 
 ### From source
 
-Building Tuigreet from source requires an installation of Rust's stable
-toolchain. Currently 1.90 and above is required. You may use the Nix devshell
-provided by the repository, or install it using something like `rustup`.
+Building Tuigreet from source requires Rust 1.95.0 or newer. The repository pins
+a nightly toolchain for development; stable Rust is supported. You may use the
+Nix devshell or install Rust using something like `rustup`.
 
 ```sh
 # Clone the repository and navigate to it
@@ -366,7 +367,7 @@ export TUIGREET_SESSIONS_DIRS="/usr/share/wayland-sessions:/custom/sessions"
 export TUIGREET_XSESSIONS_DIRS="/usr/share/xsessions"
 export TUIGREET_SESSION_WRAPPER="systemd-cat -t sway"
 export TUIGREET_XSESSION_WRAPPER="startx"
-export TUIGREET_ENVIRONMENTS="WAYLAND_DISPLAY:DISPLAY"
+export TUIGREET_ENVIRONMENTS="XDG_CURRENT_DESKTOP=sway:XDG_SESSION_TYPE=wayland"
 export TUIGREET_DEFAULT_SESSION="uwsm"
 
 # Power options
@@ -471,10 +472,12 @@ The available sessions are discovered by iterating over all paths present in the
 sessions in custom directories, you can set the `--sessions` arguments with a
 colon-separated list of directories.
 
-On most Linux distributions, `.desktop` files are stored in the `/usr/share/xsessions`
-and `/usr/share/wayland-sessions` directories respectively.
+On most Linux distributions, `.desktop` files are stored in the
+`/usr/share/xsessions` and `/usr/share/wayland-sessions` directories
+respectively.
 
-It is also possible to specify a regex for the default session using `--default-session`.
+It is also possible to specify a regex for the default session using
+`--default-session`.
 
 #### Desktop environments
 
@@ -519,11 +522,14 @@ with `startx /usr/bin/env`, so the X11 server is started properly.
 ### Power management
 
 Four power actions are possible from `tuigreet`: shutting down (through
-`shutdown -h now`), rebooting (with `shutdown -r now`), suspending (with
-`loginctl suspend`) and hibernating (with `loginctl hibernate`) the machine.
-This requires that those commands be executable by regular users, which is not
-the case on some distros. `loginctl` is provided by both systemd and elogind, so
-the suspend and hibernate defaults work on non-systemd distributions as well.
+`shutdown -h now`), rebooting (with `shutdown -r now`), suspending and
+hibernating the machine. Sleep actions use `systemctl suspend` and
+`systemctl hibernate` when systemd is running, or `loginctl suspend` and
+`loginctl hibernate` on elogind systems. The greeter remains available after
+resuming from a sleep action.
+
+These commands must be executable by the greeter user without interactive
+authorization. Some distributions require additional permission configuration.
 
 To alleviate this, there are options to customize the commands that are run:
 `--power-shutdown`, `--power-reboot`, `--power-suspend` and `--power-hibernate`.

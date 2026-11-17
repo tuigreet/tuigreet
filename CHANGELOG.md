@@ -5,7 +5,9 @@
 ### Added
 
 - Suspend and hibernate actions are now available from the power menu. They use
-  `loginctl suspend` and `loginctl hibernate` by default.
+  `systemctl suspend` and `systemctl hibernate` on systemd systems, or the
+  corresponding `loginctl` commands on elogind systems. The greeter remains
+  available after resuming.
 - `[power] suspend` and `[power] hibernate` configuration keys, plus the
   `--power-suspend` and `--power-hibernate` command-line options, allow
   overriding those actions.
@@ -42,11 +44,22 @@
   directories, wrappers, and user-menu state instead of retaining stale values.
 - Reloading session directories now refreshes the session-selection menu while
   retaining the selected session when it is still available.
+- Unrelated configuration reloads no longer discard the desktop session to
+  launch.
+- Password reveal mode now tracks the editing cursor even when masking is
+  hidden.
+- Modified `f` character bindings, such as `Ctrl+f`, are accepted correctly.
+- Idle timeouts that cannot fit the system clock are rejected during validation.
+- Terminal state is restored when initialization or terminal input fails.
+- Packaged builds now load the same embedded localization catalogs as source
+  builds.
 - Explicit `secret.mode = "hidden"` and the legacy `display.asterisks = false`
   setting now correctly override lower-priority configuration layers.
 - `[general] debug` and `log_file` now configure logging during startup.
 - Failed automatic authentication responses now return to the username prompt
   instead of starting another authentication attempt.
+- Retrying after a rejected password now reuses the greetd connection instead of
+  racing a replacement connection against daemon-side session cleanup.
 - When a remembered user is enabled alongside a one-user menu, tuigreet no
   longer submits duplicate session-creation requests.
 - Unicode input editing remains correct for long buffers beyond the 16-bit
