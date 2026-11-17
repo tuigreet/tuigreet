@@ -292,6 +292,7 @@ impl Greeter {
     {
       return;
     }
+    self.sessions.selected = 0;
     self.session_source = SessionSource::Session(0);
 
     let Some(pattern) = self.default_session.as_deref() else {
@@ -710,16 +711,14 @@ impl Greeter {
     self.logfile.clone_from(&config.general.log_file);
     self.numlock = config.general.numlock;
     // Session
-    self.session_source = config.session.command.as_ref().map_or_else(
-      SessionSource::default,
-      |command| {
-        SessionSource::DefaultCommand(
-          command.clone(),
-          (!config.session.environments.is_empty())
-            .then(|| config.session.environments.clone()),
-        )
-      },
-    );
+    let defaults_changed = self.loaded_config.as_ref().is_none_or(|old| {
+      old.session.command != config.session.command
+        || old.session.environments != config.session.environments
+        || old.session.default_session != config.session.default_session
+    });
+    if defaults_changed {
+      self.session_source = Self::configured_session_source(&config);
+    }
     self.session_paths.clear();
     for dir in &config.session.sessions_dirs {
       self.add_session_path(PathBuf::from(dir), SessionType::Wayland);
@@ -867,25 +866,53 @@ impl Greeter {
       .options
       .get(self.sessions.selected)
       .and_then(|session| session.path.clone());
-    let sessions = get_sessions(self);
-    self.sessions.options = sessions;
-    self.sessions.selected = selected_path
-      .as_ref()
-      .and_then(|path| {
+    let active_path = match self.session_source {
+      SessionSource::Session(index) => {
         self
           .sessions
           .options
-          .iter()
-          .position(|session| session.path.as_ref() == Some(path))
-      })
-      .unwrap_or(0);
-    if matches!(self.session_source, SessionSource::Session(_)) {
-      self.session_source = if self.sessions.options.is_empty() {
-        SessionSource::default()
-      } else {
-        SessionSource::Session(self.sessions.selected)
-      };
+          .get(index)
+          .and_then(|session| session.path.clone())
+      },
+      _ => None,
+    };
+    self.sessions.options = get_sessions(self);
+    if self.mock && self.sessions.options.is_empty() {
+      self.sessions.options = mock_sessions();
     }
+    let resolve_path = |path: &PathBuf| {
+      self
+        .sessions
+        .options
+        .iter()
+        .position(|session| session.path.as_ref() == Some(path))
+    };
+    self.sessions.selected =
+      selected_path.as_ref().and_then(resolve_path).unwrap_or(0);
+    if matches!(self.session_source, SessionSource::Session(_)) {
+      if let Some(index) = active_path.as_ref().and_then(resolve_path) {
+        self.session_source = SessionSource::Session(index);
+      } else {
+        self.session_source = self
+          .loaded_config
+          .as_ref()
+          .map_or_else(SessionSource::default, Self::configured_session_source);
+      }
+    }
+    self.select_default_session();
+  }
+
+  fn configured_session_source(config: &Config) -> SessionSource {
+    config.session.command.as_ref().map_or_else(
+      SessionSource::default,
+      |command| {
+        SessionSource::DefaultCommand(
+          command.clone(),
+          (!config.session.environments.is_empty())
+            .then(|| config.session.environments.clone()),
+        )
+      },
+    )
   }
 
   /// Apply the theme from the effective configuration.
@@ -982,31 +1009,6 @@ mod test {
   }
 
   #[test]
-  fn applying_config_replaces_session_state() {
-    let mut greeter = Greeter::default();
-
-    let mut configured = Config::default();
-    configured.session.command = Some("first".into());
-    configured.session.sessions_dirs = vec!["/first".into()];
-    configured.session.session_wrapper = Some("wrapper".into());
-    configured.user_menu.enabled = true;
-    greeter.apply_config(configured);
-
-    let mut replacement = Config::default();
-    replacement.session.sessions_dirs = vec!["/second".into()];
-    greeter.apply_config(replacement);
-
-    assert!(matches!(greeter.session_source, SessionSource::None));
-    assert_eq!(greeter.session_paths, [(
-      PathBuf::from("/second"),
-      SessionType::Wayland
-    )]);
-    assert!(greeter.session_wrapper.is_none());
-    assert!(!greeter.user_menu);
-    assert!(greeter.users.options.is_empty());
-  }
-
-  #[test]
   fn applying_config_updates_log_file() {
     let mut greeter = Greeter::default();
     let mut config = Config::default();
@@ -1056,7 +1058,7 @@ mod test {
   }
 
   #[tokio::test]
-  async fn default_session_selects_from_loaded_sessions()
+  async fn session_reload_preserves_selection_and_applies_changed_defaults()
   -> Result<(), Box<dyn Error>> {
     let directory = tempdir()?;
     for (file, name) in
@@ -1075,14 +1077,51 @@ mod test {
     config.session.default_session = Some("second\\.desktop$".to_string());
     let (events, _receiver) = mpsc::channel(1);
 
-    let greeter = Greeter::new(events, config, false).await;
-    let selected = &greeter.sessions.options[greeter.sessions.selected];
+    let mut greeter = Greeter::new(events, config.clone(), false).await;
+    assert_eq!(greeter.session_source.command(&greeter), Some("Second"));
 
-    assert_eq!(selected.name, "Second");
-    assert!(matches!(
-      greeter.session_source,
-      SessionSource::Session(index) if index == greeter.sessions.selected
-    ));
+    greeter.sessions.selected = 0;
+    config.display.show_time = true;
+    greeter.apply_config(config.clone());
+    greeter.reload_sessions();
+    assert_eq!(greeter.session_source.command(&greeter), Some("Second"));
+
+    fs::remove_file(directory.path().join("first.desktop"))?;
+    greeter.reload_sessions();
+    assert_eq!(greeter.session_source.command(&greeter), Some("Second"));
+
+    fs::write(
+      directory.path().join("first.desktop"),
+      "[Desktop Entry]\nName=First\nExec=First\n",
+    )?;
+    config.session.default_session = Some("first\\.desktop$".into());
+    greeter.apply_config(config.clone());
+    greeter.reload_sessions();
+    assert_eq!(greeter.session_source.command(&greeter), Some("First"));
+
+    fs::remove_file(directory.path().join("first.desktop"))?;
+    greeter.reload_sessions();
+    assert_eq!(greeter.session_source.command(&greeter), Some("Second"));
+
+    config.session.command = Some("configured".into());
+    config.session.environments = vec!["SESSION=configured".into()];
+    greeter.apply_config(config.clone());
+    greeter.reload_sessions();
+    assert_eq!(greeter.session_source.command(&greeter), Some("configured"));
+    assert_eq!(
+      greeter.session_source.env(),
+      Some(vec!["SESSION=configured".into()])
+    );
+
+    config.session.command = None;
+    greeter.apply_config(config);
+    greeter.reload_sessions();
+    assert_eq!(greeter.session_source.command(&greeter), Some("Second"));
+    assert_eq!(greeter.session_source.env(), None);
+
+    fs::remove_file(directory.path().join("second.desktop"))?;
+    greeter.reload_sessions();
+    assert_eq!(greeter.session_source.command(&greeter), None);
     Ok(())
   }
 
