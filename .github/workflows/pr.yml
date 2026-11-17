@@ -1,56 +1,24 @@
 name: Pull request build
 
+permissions:
+  contents: read
+
 on:
   pull_request:
-    branches:
-      - master
+    branches: [ "master" ]
+    paths:
+      - 'crates/**'
+      - 'xtask/**'
+      - 'contrib/**'
+      - '.cargo/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - '.rustfmt.toml'
+      - '.github/workflows/rust.yml'
+      - '.github/workflows/pr.yml'
+      - '.github/workflows/release.yml'
 
 jobs:
-  clippy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Lint
-        run: |
-          cargo clippy -- -D warnings
-          cargo clippy --release -- -D warnings
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: dtolnay/rust-toolchain@stable
-      - run: |
-          sudo apt update && sudo apt install -y libnss-wrapper
-      - uses: Swatinem/rust-cache@v2
-      - name: Test
-        env:
-          NSS_WRAPPER_PASSWD: ${{ github.workspace }}/contrib/fixtures/passwd
-          NSS_WRAPPER_GROUP: ${{ github.workspace }}/contrib/fixtures/group
-        run: |
-          cargo test
-          LD_PRELOAD=libnss_wrapper.so cargo test --features nsswrapper nsswrapper_
-      - name: Generate packaging assets
-        env:
-          SOURCE_DATE_EPOCH: 315532800
-        run: |
-          cargo xtask man
-          cargo xtask comp
-
-  build:
-    strategy:
-      matrix:
-        arch:
-          - { name: "x86_64", os: "ubuntu-latest", target: "x86_64-unknown-linux-gnu", cross: false }
-    runs-on: ${{ matrix.arch.os }}
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: cargo-cache-${{ matrix.arch.target }}
-      - name: Build
-        run: |
-          cargo build --release --target=${{ matrix.arch.target }}
+  validate:
+    uses: ./.github/workflows/rust.yml

@@ -6,12 +6,29 @@ permissions:
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      checkout-ref:
+        description: 'Immutable source ref to validate; defaults to the triggering commit'
+        required: false
+        default: ''
+        type: string
   push:
-    branches: [ "main" ]
-    paths: [ "src/**.rs", "Cargo.toml", "Cargo.lock"]
+    branches: [ "master" ]
+    paths:
+      - 'crates/**'
+      - 'xtask/**'
+      - 'contrib/**'
+      - '.cargo/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - '.rustfmt.toml'
+      - '.github/workflows/rust.yml'
+      - '.github/workflows/pr.yml'
+      - '.github/workflows/release.yml'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-rust-${{ inputs.checkout-ref || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -22,49 +39,106 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.checkout-ref || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo fmt -- --check
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
 
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        profile: [debug, release]
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.checkout-ref || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --verbose
+      - name: Build workspace and all targets
+        env:
+          PROFILE: ${{ matrix.profile }}
+          RUSTFLAGS: -D warnings
+        run: |
+          args=()
+          if [[ "$PROFILE" == release ]]; then
+            args+=(--release)
+          fi
+          cargo build --locked --workspace --all-targets "${args[@]}"
 
   clippy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.checkout-ref || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
       - uses: Swatinem/rust-cache@v2
-      - name: Lint
+      - name: Lint debug and release targets
         run: |
-          cargo clippy -- -D warnings
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+          cargo clippy --locked --workspace --all-targets --release -- -D warnings
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.checkout-ref || github.sha }}
+      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Check minimum supported Rust version
+        run: cargo check --locked --workspace --all-targets
 
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.checkout-ref || github.sha }}
       - uses: dtolnay/rust-toolchain@stable
-      - run: |
-          sudo apt update && sudo apt install -y libnss-wrapper
+      - name: Install NSS test support
+        run: sudo apt-get update && sudo apt-get install -y libnss-wrapper
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Test
+      - name: Test workspace and NSS integration
         env:
-          NSS_WRAPPER_PASSWD: contrib/fixtures/passwd
-          NSS_WRAPPER_GROUP: contrib/fixtures/group
+          NSS_WRAPPER_PASSWD: ${{ github.workspace }}/contrib/fixtures/passwd
+          NSS_WRAPPER_GROUP: ${{ github.workspace }}/contrib/fixtures/group
         run: |
-          cargo test
-          LD_PRELOAD=libnss_wrapper.so cargo test --features nsswrapper nsswrapper_
+          cargo test --locked --workspace --all-targets
+          LD_PRELOAD=libnss_wrapper.so cargo test --locked --package tuigreet --features nsswrapper nsswrapper_
 
       - name: Generate packaging assets
         env:
           SOURCE_DATE_EPOCH: 315532800
         run: |
-          cargo xtask man
-          cargo xtask comp
+          cargo run --locked --package xtask -- man
+          cargo run --locked --package xtask -- comp
+          test -s target/xtask/man/tuigreet.1
+          for file in tuigreet.bash _tuigreet tuigreet.fish tuigreet.nu tuigreet.elv tuigreet.ps1; do
+            test -s "target/xtask/completions/$file"
+          done
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.checkout-ref || github.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Verify source archives and packaged localization
+        run: |
+          cargo package --workspace --locked
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')
+          temporary=$(mktemp -d)
+          trap 'rm -rf "$temporary"' EXIT
+          tar -xf "target/package/tuigreet-locales-$version.crate" -C "$temporary"
+          cargo test --locked --manifest-path "$temporary/tuigreet-locales-$version/Cargo.toml"

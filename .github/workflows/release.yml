@@ -2,7 +2,6 @@ name: Release build
 
 permissions:
   contents: write
-  actions: write
 
 on:
   push:
@@ -11,39 +10,82 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to build'
+        description: 'Existing semver tag to build'
         required: true
+        type: string
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ inputs.tag || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.source.outputs.tag }}
+      commit: ${{ steps.source.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Resolve existing release tag
+        id: source
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            printf 'Invalid release tag: %s\n' "$RELEASE_TAG" >&2
+            exit 1
+          fi
+          git show-ref --verify --quiet "refs/tags/$RELEASE_TAG"
+          commit=$(git rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")
+          printf 'tag=%s\ncommit=%s\n' "$RELEASE_TAG" "$commit" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ steps.source.outputs.commit }}
+
+      - name: Verify workspace version
+        env:
+          RELEASE_TAG: ${{ steps.source.outputs.tag }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import tomllib
+
+          with open("Cargo.toml", "rb") as manifest:
+              version = tomllib.load(manifest)["workspace"]["package"]["version"]
+          tag = os.environ["RELEASE_TAG"]
+          if version != tag:
+              raise SystemExit(f"Workspace version {version!r} does not match tag {tag!r}")
+          PY
+
   validate:
+    needs: resolve
     uses: ./.github/workflows/rust.yml
+    with:
+      checkout-ref: ${{ needs.resolve.outputs.commit }}
 
   build-cross:
+    needs: resolve
     strategy:
       matrix:
         arch:
-          - { name: "x86_64", os: "ubuntu-latest", target: "x86_64-unknown-linux-gnu", cross: false }
-          - { name: "aarch64", os: "ubuntu-latest", target: "aarch64-unknown-linux-gnu", cross: true }
-          - { name: "i686", os: "ubuntu-latest", target: "i686-unknown-linux-gnu", cross: true }
-          - { name: "armv7", os: "ubuntu-latest", target: "armv7-unknown-linux-gnueabihf", cross: true }
-
-    runs-on: ${{ matrix.arch.os }}
+          - { name: "x86_64", target: "x86_64-unknown-linux-gnu" }
+          - { name: "aarch64", target: "aarch64-unknown-linux-gnu" }
+          - { name: "i686", target: "i686-unknown-linux-gnu" }
+          - { name: "armv7", target: "armv7-unknown-linux-gnueabihf" }
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+      TARGET: ${{ matrix.arch.target }}
+      ARCH: ${{ matrix.arch.name }}
     steps:
-      - name: Get the version
-        id: version
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "VERSION=${{ inputs.tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Checkout
+      - name: Checkout release source
         uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.commit }}
 
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -55,48 +97,64 @@ jobs:
           shared-key: cargo-cache-${{ matrix.arch.target }}
 
       - name: Install cross
-        run: cargo install cross --version 0.2.5
+        run: cargo install cross --version 0.2.5 --locked
 
-      - name: Build
+      - name: Cross build
+        run: cross build --locked --release --package tuigreet --target "$TARGET"
+
+      - name: Verify x86_64 release identity
+        if: matrix.arch.name == 'x86_64'
         run: |
-          cross build --release --target=${{ matrix.arch.target }}
+          version=$("target/$TARGET/release/tuigreet" --version)
+          test "${version%%$'\n'*}" = "tuigreet $RELEASE_TAG ($TARGET)"
 
       - name: Rename artifact
-        run: mv target/${{ matrix.arch.target }}/release/tuigreet target/${{ matrix.arch.target }}/release/tuigreet-${{ steps.version.outputs.VERSION }}-${{ matrix.arch.name }}
+        run: mv "target/$TARGET/release/tuigreet" "target/$TARGET/release/tuigreet-$RELEASE_TAG-$ARCH"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: tuigreet-${{ steps.version.outputs.VERSION }}-${{ matrix.arch.name }}
-          path: target/${{ matrix.arch.target }}/release/tuigreet-${{ steps.version.outputs.VERSION }}-${{ matrix.arch.name }}
+          name: tuigreet-${{ needs.resolve.outputs.tag }}-${{ matrix.arch.name }}
+          path: target/${{ matrix.arch.target }}/release/tuigreet-${{ needs.resolve.outputs.tag }}-${{ matrix.arch.name }}
+          if-no-files-found: error
 
   release:
     runs-on: ubuntu-latest
-    needs: [validate, build-cross]
+    needs: [resolve, validate, build-cross]
+    env:
+      RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+      SOURCE_COMMIT: ${{ needs.resolve.outputs.commit }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Get the version
-        id: version
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "VERSION=${{ inputs.tag }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.commit }}
+
       - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
+          pattern: tuigreet-${{ needs.resolve.outputs.tag }}-*
           path: target/out
+          merge-multiple: true
 
-      - name: Generate checksums
+      - name: Generate and verify checksums
+        working-directory: target/out
         run: |
-          cd target/out
-          sha256sum */* > SHA256SUMS.txt
+          artifacts=()
+          for arch in x86_64 aarch64 i686 armv7; do
+            artifacts+=("tuigreet-$RELEASE_TAG-$arch")
+          done
+          sha256sum "${artifacts[@]}" > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
 
-      - name: Create release
-        uses: ncipollo/release-action@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          name: ${{ steps.version.outputs.VERSION }}
-          prerelease: false
-          tag: refs/tags/${{ steps.version.outputs.VERSION }}
-          artifacts: target/out/*/*,target/out/SHA256SUMS.txt
+      - name: Verify tag and create release
+        working-directory: target/out
+        run: |
+          git fetch --no-tags origin "refs/tags/$RELEASE_TAG"
+          test "$(git rev-parse 'FETCH_HEAD^{commit}')" = "$SOURCE_COMMIT"
+          artifacts=(SHA256SUMS.txt)
+          for arch in x86_64 aarch64 i686 armv7; do
+            artifacts+=("tuigreet-$RELEASE_TAG-$arch")
+          done
+          gh release create "$RELEASE_TAG" "${artifacts[@]}" \
+            --verify-tag --title "$RELEASE_TAG" --notes ''

@@ -81,10 +81,8 @@ pub fn get_issue() -> Option<String> {
       utmpx::reset_cursor();
 
       while let Ok(entry) = utmpx::read_next_entry() {
-        if matches!(
-          entry.ut_type,
-          UtType::USER_PROCESS | UtType::LOGIN_PROCESS
-        ) {
+        if matches!(entry.ut_type, UtType::USER_PROCESS | UtType::LOGIN_PROCESS)
+        {
           count += 1;
         }
       }
