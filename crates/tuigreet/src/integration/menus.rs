@@ -1,11 +1,10 @@
 use std::io;
 
 use crossterm::event::KeyCode;
-use libgreetd_stub::SessionOptions;
 use tokio::task::spawn;
 use tuigreet_config::KeybindingsConfig;
 
-use super::common::IntegrationRunner;
+use super::common::{IntegrationRunner, SessionOptions};
 use crate::{
   power::PowerOption,
   ui::{common::menu::Menu, power::Power, sessions::Session, users::User},
@@ -178,6 +177,65 @@ async fn power_menu() -> io::Result<()> {
   });
 
   runner.join_until_end(events).await
+}
+
+#[tokio::test]
+async fn sleep_actions_resume_authentication() -> io::Result<()> {
+  let opts = SessionOptions {
+    username: "apognu".to_string(),
+    password: "password".to_string(),
+    mfa:      false,
+  };
+
+  let runner = IntegrationRunner::new(
+    opts,
+    Some(|greeter| {
+      greeter.powers = Menu::<Power> {
+        title:    "Sleep actions".to_string(),
+        options:  vec![
+          Power {
+            action:  PowerOption::Suspend,
+            label:   "Suspend safely".to_string(),
+            command: Some("true".to_string()),
+          },
+          Power {
+            action:  PowerOption::Hibernate,
+            label:   "Hibernate safely".to_string(),
+            command: Some("true".to_string()),
+          },
+        ],
+        selected: 0,
+      };
+    }),
+  )?;
+
+  let events = spawn({
+    let runner = runner.clone();
+
+    async move {
+      runner.wait_until_buffer_contains("Username:").await?;
+      runner.send_text("apognu").await?;
+      runner.wait_until_buffer_contains("Password:").await?;
+      for character in "pass".chars() {
+        runner.send_key(KeyCode::Char(character)).await?;
+      }
+
+      runner.send_key(KeyCode::F(12)).await?;
+      runner.wait_until_buffer_contains("Sleep actions").await?;
+      runner.send_key(KeyCode::Enter).await?;
+      runner.wait_until_buffer_contains("Password:").await?;
+
+      runner.send_key(KeyCode::F(12)).await?;
+      runner.wait_until_buffer_contains("Sleep actions").await?;
+      runner.send_key(KeyCode::Down).await?;
+      runner.send_key(KeyCode::Enter).await?;
+      runner.wait_until_buffer_contains("Password:").await?;
+      runner.send_text("word").await?;
+      Ok(())
+    }
+  });
+
+  runner.join_until_client_exit(events).await
 }
 
 #[tokio::test]

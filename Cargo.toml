@@ -67,7 +67,6 @@ uzers              = "0.12.2"
 zeroize            = "1.9.1"
 
 # Dev
-greetd-stub   = "0.3.0"
 tempfile      = "3.27.0"
 unicode-width = "0.2.3"
 

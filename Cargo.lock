@@ -584,15 +584,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "getopts"
-version = "0.2.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfe4fbac503b8d1f88e6676011885f34b7174f46e59956bba534ba83abded4df"
-dependencies = [
- "unicode-width",
-]
-
-[[package]]
 name = "getrandom"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -613,20 +604,6 @@ dependencies = [
  "libc",
  "r-efi",
  "rand_core",
-]
-
-[[package]]
-name = "greetd-stub"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5813b31008b93f6a134866a206c5e383edb1257e85891f6b7b5e942a611d2c68"
-dependencies = [
- "getopts",
- "greetd_ipc",
- "tokio",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -2078,7 +2055,6 @@ dependencies = [
  "crossterm",
  "dirs",
  "futures",
- "greetd-stub",
  "greetd_ipc",
  "i18n-embed",
  "jiff",

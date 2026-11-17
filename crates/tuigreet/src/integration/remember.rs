@@ -1,10 +1,9 @@
 use std::io;
 
 use crossterm::event::KeyCode;
-use libgreetd_stub::SessionOptions;
 use tokio::task::spawn;
 
-use super::common::IntegrationRunner;
+use super::common::{IntegrationRunner, SessionOptions};
 use crate::ui::{
   common::{masked::MaskedString, menu::Menu},
   users::User,

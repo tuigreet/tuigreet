@@ -1,10 +1,9 @@
 use std::io;
 
 use crossterm::event::{KeyCode, KeyModifiers};
-use libgreetd_stub::SessionOptions;
 use tokio::task::spawn;
 
-use super::common::IntegrationRunner;
+use super::common::{IntegrationRunner, SessionOptions};
 
 #[tokio::test]
 async fn keyboard_movement() -> io::Result<()> {

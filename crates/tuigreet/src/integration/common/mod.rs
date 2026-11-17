@@ -1,5 +1,6 @@
 pub mod backend;
 mod output;
+mod server;
 
 use std::{
   io,
@@ -9,7 +10,6 @@ use std::{
 };
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use libgreetd_stub::SessionOptions;
 use tempfile::NamedTempFile;
 use tokio::{
   sync::{
@@ -23,6 +23,7 @@ use tui::buffer::Buffer;
 use tuigreet_config::{Config, cli::Cli};
 use tuigreet_types::AuthStatus;
 
+pub use self::server::SessionOptions;
 use self::{
   backend::{TestBackend, output},
   output::Output,
@@ -37,7 +38,7 @@ use crate::{
 pub(super) struct IntegrationRunner(Arc<RwLock<RunnerState>>);
 
 struct RunnerState {
-  server: Option<JoinHandle<()>>,
+  server: Option<JoinHandle<io::Result<()>>>,
   client: Option<JoinHandle<io::Result<()>>>,
   buffer: Arc<Mutex<Buffer>>,
   sender: Sender<Event>,
@@ -73,9 +74,7 @@ impl IntegrationRunner {
     let events = Events::new();
     let sender = events.sender();
 
-    let server = spawn(async move {
-      libgreetd_stub::start(&socket, &opts).await;
-    });
+    let server = spawn(async move { server::serve(&socket, opts).await });
 
     let client = spawn(async move {
       let mut greeter =
@@ -143,7 +142,7 @@ impl IntegrationRunner {
       while !client_done || !events_done {
         tokio::select! {
           ret = &mut server, if !server_done => {
-            rethrow(ret)?;
+            rethrow(ret)??;
             server_done = true;
           },
           ret = &mut client, if !client_done => {
@@ -187,7 +186,7 @@ impl IntegrationRunner {
     let result = timeout(Duration::from_secs(5), async {
       tokio::select! {
         ret = &mut server => {
-          rethrow(ret)?;
+          rethrow(ret)??;
           Err(io::Error::other("server exited before test assertions completed"))
         },
         ret = &mut client => {

@@ -1,10 +1,9 @@
 use std::io;
 
 use jiff::civil::DateTime;
-use libgreetd_stub::SessionOptions;
 use tokio::task::spawn;
 
-use super::common::IntegrationRunner;
+use super::common::{IntegrationRunner, SessionOptions};
 
 #[tokio::test]
 async fn show_greet() -> io::Result<()> {

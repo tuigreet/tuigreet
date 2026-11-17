@@ -51,5 +51,4 @@ uzers              = { workspace = true }
 zeroize            = { workspace = true }
 
 [dev-dependencies]
-greetd-stub = { workspace = true }
-tempfile    = { workspace = true }
+tempfile = { workspace = true }
