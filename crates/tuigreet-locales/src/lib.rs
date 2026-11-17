@@ -51,3 +51,20 @@ impl Deref for LazyLoader {
 }
 
 pub static MESSAGES: LazyLoader = LazyLoader::new();
+
+#[cfg(test)]
+mod tests {
+  use std::collections::HashMap;
+
+  use super::MESSAGES;
+
+  #[test]
+  fn embedded_catalog_formats_the_authentication_title() {
+    let hostname = "release-fixture.example";
+    let title = MESSAGES.get_args(
+      "title_authenticate",
+      HashMap::from([("hostname", hostname)]),
+    );
+    assert!(title.contains(hostname));
+  }
+}
