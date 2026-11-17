@@ -6,21 +6,43 @@ permissions:
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
     paths:
-      - 'src/**.rs'
-      - 'build.rs'
+      - 'crates/**'
+      - 'xtask/**'
+      - 'contrib/**'
+      - '.cargo/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
-      - 'nix/package.nix'
+      - 'rust-toolchain.toml'
+      - 'nix/**'
       - 'flake.nix'
       - 'flake.lock'
+      - '.github/workflows/nix.yml'
+  pull_request:
+    branches: [ "master" ]
+    paths:
+      - 'crates/**'
+      - 'xtask/**'
+      - 'contrib/**'
+      - '.cargo/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'nix/**'
+      - 'flake.nix'
+      - 'flake.lock'
+      - '.github/workflows/nix.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   populate-cache:
     runs-on: ubuntu-latest
     steps:
-      - name: "Checkout"
+      - name: Checkout
         uses: actions/checkout@v7.0.1
 
       - uses: cachix/install-nix-action@v31.11.1
@@ -30,7 +52,8 @@ jobs:
       - uses: cachix/cachix-action@v17
         with:
           name: tuigreet
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          skipPush: ${{ github.event_name == 'pull_request' }}
 
-      - name: "Build with Nix"
-        run: nix build
+      - name: Build package and run NixOS VM check
+        run: nix build --print-build-logs .#tuigreet .#checks.x86_64-linux.tuigreet-test
