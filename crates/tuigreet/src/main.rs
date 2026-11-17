@@ -360,9 +360,9 @@ where
     Some(Event::Exit(status)) => {
       crate::exit(&mut *greeter.write().await, status).await;
     },
-    Some(Event::PowerCommand(command)) => {
+    Some(Event::PowerCommand(command, action)) => {
       if matches!(
-        power::run(greeter, command).await,
+        power::run(greeter, command, action).await,
         PowerPostAction::ClearScreen
       ) {
         execute!(io::stdout(), LeaveAlternateScreen)?;

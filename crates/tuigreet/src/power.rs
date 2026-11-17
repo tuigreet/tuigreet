@@ -1,4 +1,4 @@
-use std::{process::Stdio, sync::Arc};
+use std::{path::Path, process::Stdio, sync::Arc};
 
 use tokio::{process::Command, sync::RwLock};
 use tuigreet_types::Mode;
@@ -15,7 +15,7 @@ pub enum PowerOption {
   Hibernate,
 }
 
-/// Execute a power command (shutdown or reboot).
+/// Execute a power command.
 pub async fn power(greeter: &Greeter, option: PowerOption) {
   if greeter.mock {
     if let Some(ref sender) = greeter.events {
@@ -65,16 +65,16 @@ pub async fn power(greeter: &Greeter, option: PowerOption) {
           command.args(["-r", "now"]);
           command
         },
-        // `loginctl` is provided by both systemd and elogind, so these
-        // defaults work across systemd and non-systemd distributions.
-        PowerOption::Suspend => {
-          let mut command = Command::new("loginctl");
-          command.arg("suspend");
-          command
-        },
-        PowerOption::Hibernate => {
-          let mut command = Command::new("loginctl");
-          command.arg("hibernate");
+        PowerOption::Suspend | PowerOption::Hibernate => {
+          let mut command = if Path::new("/run/systemd/system").is_dir() {
+            Command::new("systemctl")
+          } else {
+            Command::new("loginctl")
+          };
+          command.arg(match option {
+            PowerOption::Suspend => "suspend",
+            _ => "hibernate",
+          });
           command
         },
       };
@@ -86,10 +86,10 @@ pub async fn power(greeter: &Greeter, option: PowerOption) {
   if let Some(mut command) = command {
     command.stdin(Stdio::null());
     command.stdout(Stdio::null());
-    command.stderr(Stdio::null());
+    command.stderr(Stdio::piped());
 
     if let Some(ref sender) = greeter.events {
-      let _ = sender.send(Event::PowerCommand(command)).await;
+      let _ = sender.send(Event::PowerCommand(command, option)).await;
     }
   }
 }
@@ -102,6 +102,7 @@ pub enum PowerPostAction {
 pub async fn run(
   greeter: &Arc<RwLock<Greeter>>,
   mut command: Command,
+  option: PowerOption,
 ) -> PowerPostAction {
   tracing::info!("executing power command: {:?}", command);
 
@@ -125,16 +126,66 @@ pub async fn run(
 
   tracing::info!("power command exited with: {:?}", message);
 
-  let mode = greeter.read().await.previous_mode;
-
   let mut greeter = greeter.write().await;
 
-  if message.is_none() {
+  if message.is_none()
+    && matches!(option, PowerOption::Shutdown | PowerOption::Reboot)
+  {
     PowerPostAction::ClearScreen
   } else {
-    greeter.mode = mode;
+    greeter.mode = greeter.previous_mode;
+    greeter.working = false;
     greeter.message = message;
 
     PowerPostAction::Noop
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use std::sync::Arc;
+
+  use tokio::{process::Command, sync::RwLock};
+  use tuigreet_types::Mode;
+
+  use super::{PowerOption, PowerPostAction, run};
+  use crate::Greeter;
+
+  #[tokio::test]
+  async fn successful_shutdown_and_reboot_still_handoff() {
+    for option in [PowerOption::Shutdown, PowerOption::Reboot] {
+      let greeter = Arc::new(RwLock::new(Greeter::default()));
+
+      assert!(matches!(
+        run(&greeter, Command::new("true"), option).await,
+        PowerPostAction::ClearScreen
+      ));
+    }
+  }
+
+  #[tokio::test]
+  async fn failed_power_action_restores_prompt_and_reports_error() {
+    let mut state = Greeter::default();
+    state.previous_mode = Mode::Password;
+    state.mode = Mode::Power;
+    state.working = true;
+    state.buffer = "partial password".to_string();
+    let greeter = Arc::new(RwLock::new(state));
+    let mut command = Command::new("/bin/sh");
+    command.args(["-c", "printf 'sleep denied' >&2; exit 7"]);
+
+    assert!(matches!(
+      run(&greeter, command, PowerOption::Suspend).await,
+      PowerPostAction::Noop
+    ));
+
+    let state = greeter.read().await;
+    assert_eq!(state.mode, Mode::Password);
+    assert!(!state.working);
+    assert_eq!(state.buffer, "partial password");
+    assert!(state.message.as_deref().is_some_and(|message| {
+      message.contains('7') && message.contains("sleep denied")
+    }));
+    drop(state);
   }
 }

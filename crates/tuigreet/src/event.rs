@@ -15,6 +15,8 @@ use tokio::{
 };
 use tuigreet_types::AuthStatus;
 
+use crate::power::PowerOption;
+
 /// Default render tick.
 const DEFAULT_FRAME_RATE: f64 = 2.0;
 
@@ -32,7 +34,7 @@ pub enum Event {
   /// Terminal input failed.
   InputError(io::Error),
   /// Power command to execute.
-  PowerCommand(Command),
+  PowerCommand(Command, PowerOption),
   /// Exit with authentication status.
   Exit(AuthStatus),
   /// UI refresh.
