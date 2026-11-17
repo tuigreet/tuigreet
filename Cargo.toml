@@ -7,15 +7,15 @@ edition      = "2024"
 license      = "GPL-3.0-only"
 repository   = "https://github.com/tuigreet/tuigreet"
 rust-version = "1.95.0"
-version      = "0.11.0"
+version      = "0.12.0"
 
 [workspace.dependencies]
 # Workspace dependencies
-tuigreet-config  = { path = "crates/tuigreet-config", version = "0.11.0" }
-tuigreet-locales = { path = "crates/tuigreet-locales", version = "0.11.0" }
-tuigreet-system  = { path = "crates/tuigreet-system", version = "0.11.0" }
-tuigreet-theme   = { path = "crates/tuigreet-theme", version = "0.11.0" }
-tuigreet-types   = { path = "crates/tuigreet-types", version = "0.11.0" }
+tuigreet-config  = { path = "crates/tuigreet-config", version = "0.12.0" }
+tuigreet-locales = { path = "crates/tuigreet-locales", version = "0.12.0" }
+tuigreet-system  = { path = "crates/tuigreet-system", version = "0.12.0" }
+tuigreet-theme   = { path = "crates/tuigreet-theme", version = "0.12.0" }
+tuigreet-types   = { path = "crates/tuigreet-types", version = "0.12.0" }
 
 # External
 ansi-to-tui        = "8.0.1"

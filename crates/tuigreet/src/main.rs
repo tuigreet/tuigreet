@@ -173,10 +173,7 @@ fn print_version() -> io::Result<()> {
     stdout,
     "Maintained by NotAShelf <https://github.com/NotAShelf/tuigreet>."
   )?;
-  writeln!(
-    stdout,
-    "Licensed under GPLv3+ (GNU GPL version 3 or later)."
-  )?;
+  writeln!(stdout, "Licensed under GPLv3 (GNU GPL version 3 only).")?;
   writeln!(stdout)?;
   writeln!(
     stdout,
