@@ -367,7 +367,11 @@ where
       ) {
         execute!(io::stdout(), LeaveAlternateScreen)?;
         terminal.set_cursor_position((1, 1))?;
-        terminal.clear()?;
+        // `Terminal::clear()` queries the cursor position (`ESC[6n`) since
+        // ratatui-core 0.1.1. crossterm cannot read the reply while the
+        // `EventStream` reader holds the input lock, so the query times out
+        // after 2 seconds and the error skips the cleanup below.
+        terminal.backend_mut().clear()?;
         execute!(io::stdout(), Hide)?;
         disable_raw_mode()?;
         return Ok(true);
