@@ -11,6 +11,7 @@ use std::{
 use ini::Ini;
 use jiff::Zoned;
 use nix::sys::utsname::uname;
+use tuigreet_config::{SessionConfig, SessionEntry};
 use utmp_rs::{UtmpEntry, UtmpParser};
 use uzers::os::unix::UserExt;
 
@@ -258,11 +259,41 @@ pub fn get_users(min_uid: u32, max_uid: u32) -> Vec<User> {
   result
 }
 
+/// Session directories declared in the configuration, without duplicates.
+pub fn configured_session_paths(
+  config: &SessionConfig,
+) -> Vec<(PathBuf, SessionType)> {
+  let mut paths: Vec<(PathBuf, SessionType)> = Vec::new();
+  let dirs = config
+    .sessions_dirs
+    .iter()
+    .map(|dir| (PathBuf::from(dir), SessionType::Wayland))
+    .chain(
+      config
+        .xsessions_dirs
+        .iter()
+        .map(|dir| (PathBuf::from(dir), SessionType::X11)),
+    );
+  for dir in dirs {
+    if !paths.contains(&dir) {
+      paths.push(dir);
+    }
+  }
+  paths
+}
+
 pub fn get_sessions(greeter: &Greeter) -> Vec<Session> {
-  let paths = if greeter.session_paths.is_empty() {
+  let sessions = discover_sessions(&greeter.session_paths);
+  apply_session_entries(sessions, &greeter.session_entries)
+}
+
+/// Read every session file from `paths`, or from the XDG data directories
+/// when `paths` is empty, sorted by name.
+pub fn discover_sessions(paths: &[(PathBuf, SessionType)]) -> Vec<Session> {
+  let paths = if paths.is_empty() {
     default_session_paths()
   } else {
-    &greeter.session_paths
+    paths
   };
 
   let mut files = vec![];
@@ -291,6 +322,42 @@ pub fn get_sessions(greeter: &Greeter) -> Vec<Session> {
   tracing::info!("found {} sessions", files.len());
 
   files
+}
+
+// Restricts `sessions` to the enabled `entries`, in their configured order and
+// with their configured names. Sessions are left untouched when no entries are
+// configured.
+fn apply_session_entries(
+  mut sessions: Vec<Session>,
+  entries: &[SessionEntry],
+) -> Vec<Session> {
+  if entries.is_empty() {
+    return sessions;
+  }
+
+  let mut entries: Vec<&SessionEntry> =
+    entries.iter().filter(|entry| entry.enabled).collect();
+  entries.sort_by_key(|entry| entry.order);
+
+  entries
+    .into_iter()
+    .filter_map(|entry| {
+      let Some(index) = sessions.iter().position(|session| {
+        session.path.as_deref() == Some(Path::new(&entry.path))
+      }) else {
+        tracing::warn!(
+          "configured session '{}' was not found in any session directory",
+          entry.path
+        );
+        return None;
+      };
+      let mut session = sessions.swap_remove(index);
+      if let Some(name) = &entry.name {
+        session.name.clone_from(name);
+      }
+      Some(session)
+    })
+    .collect()
 }
 
 fn load_desktop_file<P>(
@@ -399,5 +466,82 @@ mod nsswrapper_tests {
     assert_eq!(users[0].name, Some("Joe".to_string()));
     assert_eq!(users[1].username, "bob");
     assert_eq!(users[1].name, None);
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use std::path::PathBuf;
+
+  use tuigreet_config::SessionEntry;
+
+  use super::apply_session_entries;
+  use crate::ui::sessions::Session;
+
+  fn session(name: &str, path: &str) -> Session {
+    Session {
+      name: name.into(),
+      path: Some(PathBuf::from(path)),
+      ..Session::default()
+    }
+  }
+
+  fn entry(path: &str, order: i32) -> SessionEntry {
+    SessionEntry {
+      path: path.into(),
+      name: None,
+      enabled: true,
+      order,
+    }
+  }
+
+  fn names(sessions: &[Session]) -> Vec<&str> {
+    sessions
+      .iter()
+      .map(|session| session.name.as_str())
+      .collect()
+  }
+
+  #[test]
+  fn sessions_are_untouched_without_entries() {
+    let sessions = vec![session("a", "/a.desktop"), session("b", "/b.desktop")];
+
+    assert_eq!(names(&apply_session_entries(sessions, &[])), ["a", "b"]);
+  }
+
+  #[test]
+  fn session_entries_filter_reorder_and_rename() {
+    let sessions = vec![
+      session("a", "/a.desktop"),
+      session("b", "/b.desktop"),
+      session("c", "/c.desktop"),
+      session("d", "/d.desktop"),
+    ];
+    let entries = [
+      entry("/a.desktop", 2),
+      SessionEntry {
+        name: Some("Bee".into()),
+        ..entry("/b.desktop", 1)
+      },
+      SessionEntry {
+        enabled: false,
+        ..entry("/c.desktop", 0)
+      },
+      entry("/missing.desktop", 0),
+    ];
+
+    assert_eq!(names(&apply_session_entries(sessions, &entries)), [
+      "Bee", "a"
+    ]);
+  }
+
+  #[test]
+  fn session_entries_with_equal_order_keep_declaration_order() {
+    let sessions = vec![session("a", "/a.desktop"), session("b", "/b.desktop")];
+    let entries = [entry("/b.desktop", 0), entry("/a.desktop", 0)];
+
+    assert_eq!(names(&apply_session_entries(sessions, &entries)), [
+      "b", "a"
+    ]);
   }
 }

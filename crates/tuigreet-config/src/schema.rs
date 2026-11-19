@@ -8,6 +8,7 @@ use serde::{
   Serializer,
   de::Error as DeserializeError,
 };
+use toml::ser::Error as TomlSerError;
 
 /// Root configuration structure
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -200,6 +201,12 @@ pub struct SessionConfig {
   /// Default session regex for the path name of a session
   #[serde(default)]
   pub default_session: Option<String>,
+
+  /// Sessions to display in the session menu, in display order. When empty,
+  /// every discovered session is displayed.
+  /// Use `[[session.entries]]` array of tables in TOML.
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub entries: Vec<SessionEntry>,
 }
 
 impl Default for SessionConfig {
@@ -212,7 +219,62 @@ impl Default for SessionConfig {
       xsession_wrapper: default_xsession_wrapper(),
       environments:     Vec::new(),
       default_session:  None,
+      entries:          Vec::new(),
     }
+  }
+}
+
+/// Display configuration for a single discovered session.
+///
+/// Example:
+/// ```toml
+/// [[session.entries]]
+/// path = "/usr/share/wayland-sessions/sway.desktop"
+/// name = "Sway"
+/// order = 0
+///
+/// [[session.entries]]
+/// path = "/usr/share/xsessions/i3.desktop"
+/// enabled = false
+/// ```
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct SessionEntry {
+  /// Path to the session's desktop file.
+  pub path: String,
+
+  /// Name to display instead of the desktop file's `Name` attribute.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub name: Option<String>,
+
+  /// Whether the session is displayed. Defaults to `true`.
+  #[serde(default = "default_true")]
+  pub enabled: bool,
+
+  /// Display order; lower values are displayed first. Entries with equal
+  /// values keep their declaration order.
+  #[serde(default)]
+  pub order: i32,
+}
+
+impl SessionEntry {
+  /// Render `entries` as `[[session.entries]]` tables.
+  ///
+  /// # Errors
+  /// Returns an error when the entries cannot be serialized.
+  pub fn to_toml(entries: Vec<Self>) -> Result<String, TomlSerError> {
+    #[derive(Serialize)]
+    struct Session {
+      entries: Vec<SessionEntry>,
+    }
+
+    #[derive(Serialize)]
+    struct Template {
+      session: Session,
+    }
+
+    toml::to_string_pretty(&Template {
+      session: Session { entries },
+    })
   }
 }
 

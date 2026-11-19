@@ -482,6 +482,38 @@ and `/usr/share/wayland-sessions` directories respectively.
 
 It is also possible to specify a regex for the default session using `--default-session`.
 
+#### Customizing the session menu
+
+The sessions displayed in the session menu, their order and their names can be
+customized with `[[session.entries]]` tables. To get started, print a template
+listing every discovered session:
+
+```sh
+tuigreet --show-all-sessions >> /etc/tuigreet/config.toml
+```
+
+Then edit the generated entries:
+
+```toml
+[[session.entries]]
+path = "/usr/share/wayland-sessions/sway.desktop"
+name = "Sway"
+order = 0
+
+[[session.entries]]
+path = "/usr/share/xsessions/i3.desktop"
+enabled = false
+```
+
+- `path` identifies the session by its desktop file.
+- `name` replaces the `Name` attribute of the desktop file.
+- `enabled = false` hides the session.
+- `order` sets the display order; lower values are displayed first.
+
+When at least one entry is configured, only the enabled entries are displayed.
+Sessions that are not listed, such as newly installed ones, are hidden until
+they are added.
+
 #### Desktop environments
 
 `greetd` only accepts environment-less commands to be used to start a session.

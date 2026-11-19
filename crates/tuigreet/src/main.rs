@@ -51,7 +51,7 @@ use tui::{
   Terminal,
   backend::{Backend, CrosstermBackend},
 };
-use tuigreet_config::{Config, cli::Cli, parser::load_config};
+use tuigreet_config::{Config, SessionEntry, cli::Cli, parser::load_config};
 use tuigreet_types::AuthStatus;
 
 pub use self::greeter::*;
@@ -84,6 +84,12 @@ async fn run_main() -> ExitCode {
   };
   if cli.dump_config {
     let Some(()) = startup_value(write_effective_config(&loaded.config)) else {
+      return ExitCode::FAILURE;
+    };
+    return ExitCode::SUCCESS;
+  }
+  if cli.show_all_sessions {
+    let Some(()) = startup_value(write_session_template(&loaded.config)) else {
       return ExitCode::FAILURE;
     };
     return ExitCode::SUCCESS;
@@ -143,6 +149,37 @@ fn run_immediate_action(cli: &Cli) -> Result<bool, Box<dyn Error>> {
 fn write_effective_config(config: &Config) -> Result<(), Box<dyn Error>> {
   let config = toml::to_string_pretty(config)?;
   writeln!(io::stdout().lock(), "{config}")?;
+  Ok(())
+}
+
+// Prints every discovered session as `[[session.entries]]` tables, to be used
+// as a starting point for customizing the session menu.
+fn write_session_template(config: &Config) -> Result<(), Box<dyn Error>> {
+  let paths = info::configured_session_paths(&config.session);
+  let entries: Vec<SessionEntry> = info::discover_sessions(&paths)
+    .into_iter()
+    .zip(0..)
+    .filter_map(|(session, order)| {
+      Some(SessionEntry {
+        path: session.path?.to_string_lossy().into_owned(),
+        name: Some(session.name),
+        enabled: true,
+        order,
+      })
+    })
+    .collect();
+
+  let mut stdout = io::stdout().lock();
+  writeln!(
+    stdout,
+    "# enabled = true|false: whether the session is displayed"
+  )?;
+  writeln!(
+    stdout,
+    "# order = <number>: display order, lower values are displayed first"
+  )?;
+  writeln!(stdout)?;
+  write!(stdout, "{}", SessionEntry::to_toml(entries)?)?;
   Ok(())
 }
 

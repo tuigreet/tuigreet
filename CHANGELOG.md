@@ -11,6 +11,10 @@
   overriding those actions.
 - When user-menu filtering leaves exactly one eligible user, tuigreet now
   selects that user and begins session creation automatically.
+- `[[session.entries]]` configuration tables allow hiding, reordering, and
+  renaming the sessions displayed in the session menu. The new
+  `--show-all-sessions` option prints a template listing every discovered
+  session.
 
 ### Changed
 
