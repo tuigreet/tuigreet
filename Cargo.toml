@@ -62,7 +62,7 @@ tui                = { package = "ratatui", version = "0.30.2", default-features
   "unstable",
 ] }
 unic-langid        = "0.9.6"
-utmp-rs            = "0.4.0"
+utmpx              = "0.2.0"
 uzers              = "0.12.2"
 zeroize            = "1.9.1"
 
