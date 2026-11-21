@@ -96,12 +96,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "64fa3c856b712db6612c019f14756e64e4bcea13337a6b33b696333a9eaa2d06"
 
 [[package]]
-name = "byteorder"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
-
-[[package]]
 name = "bytes"
 version = "1.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2107,7 +2101,7 @@ dependencies = [
  "tuigreet-theme",
  "tuigreet-types",
  "unicode-width",
- "utmp-rs",
+ "utmpx",
  "uzers",
  "zeroize",
 ]
@@ -2226,27 +2220,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca718471876992059f251e33aafc334346ada08042b7661dd1fe313a9bced557"
 
 [[package]]
-name = "utmp-raw"
-version = "0.4.0"
+name = "utmpx"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3beeac103419c41dad57dc6cbff2bb5fde2d6bcf095251741da8a2faec0601f0"
-dependencies = [
- "cfg-if",
- "libc",
- "zerocopy",
-]
-
-[[package]]
-name = "utmp-rs"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65bb375fa0da0fc928a3cbc3e2061d60e15cfca645e43a1d817fb0ee4199507e"
+checksum = "24cad6c2dc8471d43e380e6c3bbb8057639e81529419adb17330c28669c6835b"
 dependencies = [
  "libc",
- "thiserror 1.0.69",
- "time",
- "utmp-raw",
- "zerocopy",
 ]
 
 [[package]]
@@ -2351,27 +2330,6 @@ dependencies = [
  "jiff",
  "pound",
  "tuigreet-config",
-]
-
-[[package]]
-name = "zerocopy"
-version = "0.7.35"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b9b4fd18abc82b8136838da5d50bae7bdea537c574d8dc1a34ed098d6c166f0"
-dependencies = [
- "byteorder",
- "zerocopy-derive",
-]
-
-[[package]]
-name = "zerocopy-derive"
-version = "0.7.35"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa4f8080344d4671fb4e831a13ad1e68092748387dfc4f55e356242fae12ce3e"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
 ]
 
 [[package]]

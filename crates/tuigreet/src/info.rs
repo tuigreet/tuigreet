@@ -11,7 +11,7 @@ use std::{
 use ini::Ini;
 use jiff::Zoned;
 use nix::sys::utsname::uname;
-use utmp_rs::{UtmpEntry, UtmpParser};
+use utmpx::sys::UtType;
 use uzers::os::unix::UserExt;
 
 use crate::{
@@ -75,20 +75,29 @@ pub fn get_issue() -> Option<String> {
     )
   };
 
-  let user_count =
-    match UtmpParser::from_path("/var/run/utmp").map_or(0, |utmp| {
-      utmp.into_iter().fold(0, |acc, entry| {
-        match entry {
-          Ok(
-            UtmpEntry::UserProcess { .. } | UtmpEntry::LoginProcess { .. },
-          ) => acc + 1,
-          _ => acc,
+  let user_count = {
+    let mut count = 0;
+
+    if utmpx::set_filename(c"/var/run/utmp").is_ok() {
+      utmpx::reset_cursor();
+
+      while let Ok(entry) = utmpx::read_next_entry() {
+        if matches!(
+          entry.ut_type,
+          UtType::USER_PROCESS | UtType::LOGIN_PROCESS
+        ) {
+          count += 1;
         }
-      })
-    }) {
+      }
+
+      utmpx::close_database();
+    }
+
+    match count {
       n if n < 2 => format!("{n} user"),
       n => format!("{n} users"),
-    };
+    }
+  };
 
   let uts = uname();
   let vtnr: usize = env::var("XDG_VTNR")
