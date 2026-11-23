@@ -1,10 +1,9 @@
 # tuigreet
 
 [greetd]: https://git.sr.ht/~kennylevinsen/greetd
-[tuigreet]: https://github.com/apognu/tuigreet
 
-Stylish, modern and extensible greeter for [greetd], built on top of the
-original [tuigreet] foundation with a focus on improved maintainability, a
+
+Stylish, modern and extensible greeter for [greetd], built with a focus on improved maintainability, a
 cleaner codebase, and a more polished user experience.
 
 ## Features
