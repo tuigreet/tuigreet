@@ -35,9 +35,7 @@ use crate::{
   event::Event,
   info::{
     get_issue,
-    get_last_command,
     get_last_session_path,
-    get_last_user_command,
     get_last_user_name,
     get_last_user_session,
     get_last_user_username,
@@ -86,10 +84,7 @@ pub struct Greeter {
   pub cursor_offset: i16,
 
   // Buffer to be used as a temporary editing zone for the various modes.
-  // Previous buffer is saved when a transient screen has to use the buffer, to
-  // be able to restore it when leaving the transient screen.
-  pub previous_buffer: Option<String>,
-  pub buffer:          String,
+  pub buffer: String,
 
   // Define the selected session and how to resolve it.
   pub session_source:   SessionSource,
@@ -145,13 +140,11 @@ pub struct Greeter {
   // Whether to prefix the power commands with `setsid`.
   pub power_setsid: bool,
 
-  pub kb_command:    u8,
   pub kb_sessions:   u8,
   pub kb_power:      u8,
   pub kb_background: u8,
 
   pub status_show_reset:          bool,
-  pub status_show_command:        bool,
   pub status_show_session:        bool,
   pub status_show_power:          bool,
   pub status_show_background:     bool,
@@ -190,7 +183,6 @@ impl Default for Greeter {
       mode:                       Mode::default(),
       previous_mode:              Mode::default(),
       cursor_offset:              0,
-      previous_buffer:            None,
       buffer:                     String::new(),
       session_source:             SessionSource::default(),
       session_paths:              Vec::new(),
@@ -216,12 +208,10 @@ impl Default for Greeter {
       message:                    None,
       powers:                     Menu::default(),
       power_setsid:               false,
-      kb_command:                 2,
       kb_sessions:                3,
       kb_power:                   12,
       kb_background:              4,
       status_show_reset:          true,
-      status_show_command:        true,
       status_show_session:        true,
       status_show_power:          true,
       status_show_background:     true,
@@ -371,11 +361,6 @@ impl Greeter {
 
       // If, on top of that, we should remember their last session.
       if greeter.remember_user_session {
-        // See if we have the last free-form command from the user.
-        if let Ok(command) = get_last_user_command(greeter.username.get()) {
-          greeter.session_source = SessionSource::Command(command);
-        }
-
         // If a session was saved, use it and its name.
         if let Ok(ref session_path) =
           get_last_user_session(greeter.username.get())
@@ -394,11 +379,6 @@ impl Greeter {
 
     // Same thing, but not user specific.
     if greeter.remember_session {
-      if let Ok(command) = get_last_command() {
-        greeter.session_source =
-          SessionSource::Command(command.trim().to_string());
-      }
-
       if let Ok(ref session_path) = get_last_session_path()
         && let Some(index) = greeter.sessions.options.iter().position(
           |Session { path, .. }| path.as_deref() == Some(session_path),
@@ -783,12 +763,6 @@ impl Greeter {
 
     opts.optopt(
       "",
-      "kb-command",
-      "F-key to use to open the command menu",
-      "[1-12]",
-    );
-    opts.optopt(
-      "",
       "kb-sessions",
       "F-key to use to open the sessions menu",
       "[1-12]",
@@ -1071,10 +1045,6 @@ impl Greeter {
 
     self.power_setsid = !self.config().opt_present("power-no-setsid");
 
-    self.kb_command = self
-      .config()
-      .opt_str("kb-command")
-      .map_or(2, |i| i.parse::<u8>().unwrap_or_default());
     self.kb_sessions = self
       .config()
       .opt_str("kb-sessions")
@@ -1088,12 +1058,7 @@ impl Greeter {
       .opt_str("kb-background")
       .map_or(4, |i| i.parse::<u8>().unwrap_or_default());
 
-    let kbs = [
-      self.kb_command,
-      self.kb_sessions,
-      self.kb_power,
-      self.kb_background,
-    ];
+    let kbs = [self.kb_sessions, self.kb_power, self.kb_background];
     for i in 0..kbs.len() {
       for j in (i + 1)..kbs.len() {
         if kbs[i] == kbs[j] {
@@ -1354,13 +1319,11 @@ impl Greeter {
       },
     }
     // Keybindings
-    self.kb_command = config.keybindings.command;
     self.kb_sessions = config.keybindings.sessions;
     self.kb_power = config.keybindings.power;
     self.kb_background = config.keybindings.background;
     // Status bar visibility
     self.status_show_reset = config.layout.widgets.status_bar.show_reset;
-    self.status_show_command = config.layout.widgets.status_bar.show_command;
     self.status_show_session = config.layout.widgets.status_bar.show_session;
     self.status_show_power = config.layout.widgets.status_bar.show_power;
     self.status_show_background =
@@ -1568,7 +1531,7 @@ mod test {
       (&["--remember-user-session"], false, None),
       (&["--min-uid", "10000", "--max-uid", "5000"], false, None),
       (&["--issue", "--greeting", "Hello, world!"], false, None),
-      (&["--kb-command", "F2", "--kb-sessions", "F2"], false, None),
+      (&["--kb-power", "3", "--kb-sessions", "3"], false, None),
       (&["--time-format", "%i %"], false, None),
       (&["--cmd", "cmd", "--env"], false, None),
       (&["--cmd", "cmd", "--env", "A"], false, None),

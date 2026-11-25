@@ -214,24 +214,6 @@ pub fn load_env_variables() -> Config {
   }
 
   // Keybindings config
-  if let Ok(value) = env::var("TUIGREET_KB_COMMAND") {
-    if let Ok(key) = value.parse::<u8>() {
-      if (1..=12).contains(&key) {
-        config.keybindings.command = key;
-      } else {
-        tracing::warn!(
-          "Invalid TUIGREET_KB_COMMAND value: '{}', expected 1-12",
-          value
-        );
-      }
-    } else {
-      tracing::warn!(
-        "Invalid TUIGREET_KB_COMMAND value: '{}', expected number",
-        value
-      );
-    }
-  }
-
   if let Ok(value) = env::var("TUIGREET_KB_SESSIONS") {
     if let Ok(key) = value.parse::<u8>() {
       if (1..=12).contains(&key) {
@@ -438,10 +420,6 @@ pub fn load_env_variables() -> Config {
   // Status bar item visibility
   if let Ok(value) = env::var("TUIGREET_STATUS_SHOW_RESET") {
     config.layout.widgets.status_bar.show_reset =
-      value.to_lowercase() == "true";
-  }
-  if let Ok(value) = env::var("TUIGREET_STATUS_SHOW_COMMAND") {
-    config.layout.widgets.status_bar.show_command =
       value.to_lowercase() == "true";
   }
   if let Ok(value) = env::var("TUIGREET_STATUS_SHOW_SESSION") {

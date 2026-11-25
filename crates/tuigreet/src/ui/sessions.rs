@@ -8,24 +8,20 @@ use crate::Greeter;
 
 // `SessionSource` models the selected session and where it comes from.
 //
-// A session can either come from a free-form command or an XDG-defined session
-// file. Each variant contains a reference to the data required to create a
-// session, either the String of the command or the index of the session in the
-// session list.
+// A session uses a configured command or an XDG session file.
 #[derive(Default)]
 pub enum SessionSource {
   #[default]
   None,
   DefaultCommand(String, Option<Vec<String>>),
-  Command(String),
   Session(usize),
 }
 
 impl SessionSource {
   // Returns a human-readable label for the selected session.
   //
-  // For free-form commands, this is the command itself. For session files, it
-  // is the value of the `Name` attribute in that file.
+  // For a configured command, use the command. For a session file, use its
+  // name.
   pub fn label<'g, 'ss: 'g>(
     &'ss self,
     greeter: &'g Greeter,
@@ -33,7 +29,6 @@ impl SessionSource {
     match self {
       Self::None => None,
       Self::DefaultCommand(command, _) => Some(command),
-      Self::Command(command) => Some(command),
       Self::Session(index) => {
         greeter
           .sessions
@@ -53,7 +48,6 @@ impl SessionSource {
     match self {
       Self::None => None,
       Self::DefaultCommand(command, _) => Some(command.as_str()),
-      Self::Command(command) => Some(command.as_str()),
       Self::Session(index) => {
         greeter
           .sessions
@@ -68,7 +62,6 @@ impl SessionSource {
     match self {
       Self::None => None,
       Self::DefaultCommand(_, env) => env.clone(),
-      Self::Command(_) => None,
       Self::Session(_) => None,
     }
   }

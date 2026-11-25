@@ -1,11 +1,9 @@
 title_authenticate = Вхід до {$hostname}
-title_command = Змінити команду для сесії
 title_power = Живлення
 title_session = Виберість сесію
 title_users = Виберіть користувача
 
 action_reset = Скинути
-action_command = Змінити команду
 action_session = Вибрати сесію
 action_power = Живлення
 
@@ -15,8 +13,6 @@ select_user = Натисніть Enter щоб вибрати користува�
 username = Ім'я користувача:
 wait = Будь ласка, зачекайте...
 failed = Помилка входу, будь ласка, спробуйте знову.
-
-new_command = Нова команда:
 
 shutdown = Завершити роботу
 reboot = Перезавантажити

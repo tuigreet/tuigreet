@@ -1,11 +1,9 @@
 title_authenticate = {$hostname} üzerinde oturum aç
-title_command = Oturum komutunu değiştir
 title_power = Güç seçenekleri
 title_session = Oturumu değiştir
 title_users = Bir kullanıcı seçin
 
 action_reset = Sıfırla
-action_command = Komutu değiştir
 action_session = Oturum seç
 action_power = Güç
 
@@ -15,8 +13,6 @@ select_user = Bir kullanıcı seçmek için Enter'a basın ya da yazmaya başlay
 username = Kullanıcı adı:
 wait = Lütfen bekleyin...
 failed = Kimlik doğrulama başarısız oldu, lütfen tekrar deneyin.
-
-new_command = Yeni komut:
 
 shutdown = Kapat
 reboot = Yeniden başlat

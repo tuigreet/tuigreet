@@ -189,12 +189,6 @@ fn apply_config_layer(dest: &mut Config, src: Config) {
     dest.layout.widgets.status_bar.show_reset =
       src.layout.widgets.status_bar.show_reset;
   }
-  if src.layout.widgets.status_bar.show_command
-    != defaults.layout.widgets.status_bar.show_command
-  {
-    dest.layout.widgets.status_bar.show_command =
-      src.layout.widgets.status_bar.show_command;
-  }
   if src.layout.widgets.status_bar.show_session
     != defaults.layout.widgets.status_bar.show_session
   {
@@ -238,9 +232,6 @@ fn apply_config_layer(dest: &mut Config, src: Config) {
   }
 
   // Keybindings
-  if src.keybindings.command != defaults.keybindings.command {
-    dest.keybindings.command = src.keybindings.command;
-  }
   if src.keybindings.sessions != defaults.keybindings.sessions {
     dest.keybindings.sessions = src.keybindings.sessions;
   }
@@ -536,11 +527,6 @@ pub fn extract_cli_config(matches: &getopts::Matches) -> Config {
     config.layout.prompt_padding = Some(p);
   }
   // Keybindings config
-  if let Some(key) = matches.opt_str("kb-command")
-    && let Ok(k) = key.parse::<u8>()
-  {
-    config.keybindings.command = k;
-  }
   if let Some(key) = matches.opt_str("kb-sessions")
     && let Ok(k) = key.parse::<u8>()
   {
@@ -663,7 +649,6 @@ impl Config {
 
     // Check keybindings are distinct
     let keys = [
-      self.keybindings.command,
       self.keybindings.sessions,
       self.keybindings.power,
       self.keybindings.background,
@@ -674,7 +659,6 @@ impl Config {
 
     // Check F-key ranges
     for (name, key) in [
-      ("command", self.keybindings.command),
       ("sessions", self.keybindings.sessions),
       ("power", self.keybindings.power),
       ("background", self.keybindings.background),
@@ -966,9 +950,8 @@ user_session = true
   fn test_keybindings_distinctness_in_config() {
     let toml_content = r"
 [keybindings]
-command = 3
 sessions = 3
-power = 7
+power = 3
 ";
 
     let config: Config =
@@ -1292,24 +1275,24 @@ session_wrapper = "   "
     let mut config = Config::default();
 
     let mut file_config = Config::default();
-    file_config.keybindings.command = 3;
+    file_config.keybindings.sessions = 2;
 
     apply_config_layer(&mut config, file_config);
 
-    assert_eq!(config.keybindings.command, 3);
+    assert_eq!(config.keybindings.sessions, 2);
   }
 
   #[test]
   fn test_user_overrides_system() {
     let mut config = Config::default();
-    config.keybindings.command = 5;
+    config.keybindings.sessions = 5;
 
     let mut user = Config::default();
-    user.keybindings.command = 7;
+    user.keybindings.sessions = 7;
 
     apply_config_layer(&mut config, user);
 
-    assert_eq!(config.keybindings.command, 7);
+    assert_eq!(config.keybindings.sessions, 7);
   }
 
   #[test]
@@ -1341,27 +1324,27 @@ session_wrapper = "   "
   #[test]
   fn test_full_priority_chain() {
     let mut config = Config::default();
-    assert_eq!(config.keybindings.command, 2);
+    assert_eq!(config.keybindings.sessions, 3);
 
     let mut system = Config::default();
-    system.keybindings.command = 5;
+    system.keybindings.sessions = 5;
     apply_config_layer(&mut config, system);
-    assert_eq!(config.keybindings.command, 5);
+    assert_eq!(config.keybindings.sessions, 5);
 
     let mut user = Config::default();
-    user.keybindings.command = 7;
+    user.keybindings.sessions = 7;
     apply_config_layer(&mut config, user);
-    assert_eq!(config.keybindings.command, 7);
+    assert_eq!(config.keybindings.sessions, 7);
 
     let mut env = Config::default();
-    env.keybindings.command = 9;
+    env.keybindings.sessions = 9;
     apply_config_layer(&mut config, env);
-    assert_eq!(config.keybindings.command, 9);
+    assert_eq!(config.keybindings.sessions, 9);
 
     let mut cli = Config::default();
-    cli.keybindings.command = 11;
+    cli.keybindings.sessions = 11;
     apply_config_layer(&mut config, cli);
-    assert_eq!(config.keybindings.command, 11);
+    assert_eq!(config.keybindings.sessions, 11);
   }
 
   #[test]

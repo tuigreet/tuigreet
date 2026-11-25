@@ -2,7 +2,6 @@
 
 pub mod background;
 pub mod bg_animation;
-mod command;
 pub mod common;
 mod i18n;
 pub mod power;
@@ -49,7 +48,6 @@ const STATUSBAR_RIGHT_INDEX: usize = 2;
 pub type Frame<'a> = CrosstermFrame<'a>;
 
 enum Button {
-  Command,
   Session,
   Power,
   Background,
@@ -232,17 +230,6 @@ where
         ));
         status_spans.push(Span::from(" "));
       }
-      if greeter.status_show_command {
-        status_spans
-          .push(status_label(theme, format!("F{}", greeter.kb_command)));
-        status_spans.push(status_value(
-          &greeter,
-          theme,
-          Button::Command,
-          fl!("action_command"),
-        ));
-        status_spans.push(Span::from(" "));
-      }
       if greeter.status_show_session {
         status_spans
           .push(status_label(theme, format!("F{}", greeter.kb_sessions)));
@@ -304,9 +291,6 @@ where
     let main_area = chunks[main_slot];
 
     let cursor = match greeter.mode {
-      Mode::Command => {
-        self::command::draw_with_area(&mut greeter, f, main_area).ok()
-      },
       Mode::Sessions => {
         greeter.sessions.draw_with_area(&greeter, f, main_area).ok()
       },
@@ -367,7 +351,6 @@ where
   S: Into<String>,
 {
   let relevant_mode = match button {
-    Button::Command => Mode::Command,
     Button::Session => Mode::Sessions,
     Button::Power => Mode::Power,
     Button::Background => Mode::Background,

@@ -104,21 +104,15 @@ async fn test_status_bar_top_position() {
 
   let buffer = render_ui(greeter, 80, 24).await;
 
-  // Status bar has distinctive patterns: ESC, F2, F3, F12
   // When at top position, it should be at row 0 (absolute top, before padding)
   // When at bottom, it's near the bottom (row 22 typically, before bottom
   // padding)
   let top_line = get_line(&buffer, 0, 80);
   let bottom_line = get_line(&buffer, 22, 80);
 
-  let top_has_status = (top_line.contains("F2")
-    || top_line.contains("F3")
-    || top_line.contains("F12"))
-    && top_line.contains("ESC");
-  let bottom_has_status = (bottom_line.contains("F2")
-    || bottom_line.contains("F3")
-    || bottom_line.contains("F12"))
-    && bottom_line.contains("ESC");
+  let top_has_status = top_line.contains("F3") && top_line.contains("ESC");
+  let bottom_has_status =
+    bottom_line.contains("F3") && bottom_line.contains("ESC");
 
   // When configured for top, status bar should be at row 0, not at bottom
   assert!(

@@ -50,9 +50,7 @@ pub fn get_height(greeter: &Greeter) -> u16 {
   let prompt_padding = greeter.prompt_padding();
 
   let initial = match greeter.mode {
-    Mode::Username | Mode::Action | Mode::Command => {
-      (2 * container_padding) + 1
-    },
+    Mode::Username | Mode::Action => (2 * container_padding) + 1,
     Mode::Password => {
       match greeter.prompt {
         Some(_) => (2 * container_padding) + prompt_padding + 2,
@@ -67,11 +65,9 @@ pub fn get_height(greeter: &Greeter) -> u16 {
   };
 
   match greeter.mode {
-    Mode::Command
-    | Mode::Sessions
-    | Mode::Power
-    | Mode::Background
-    | Mode::Processing => initial,
+    Mode::Sessions | Mode::Power | Mode::Background | Mode::Processing => {
+      initial
+    },
     _ => initial + greeting_height,
   }
 }

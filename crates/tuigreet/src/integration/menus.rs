@@ -1,4 +1,4 @@
-use crossterm::event::{KeyCode, KeyModifiers};
+use crossterm::event::KeyCode;
 use libgreetd_stub::SessionOptions;
 
 use super::common::IntegrationRunner;
@@ -23,7 +23,6 @@ async fn menus_labels_default() {
     async move {
       runner.wait_until_buffer_contains("Username:").await;
 
-      assert!(runner.output().await.contains("F2 Change command"));
       assert!(runner.output().await.contains("F3 Choose session"));
       assert!(runner.output().await.contains("F12 Power"));
     }
@@ -43,7 +42,6 @@ async fn menus_labels_with_custom_bindings() {
   let mut runner = IntegrationRunner::new(
     opts,
     Some(|greeter| {
-      greeter.kb_command = 11;
       greeter.kb_sessions = 1;
       greeter.kb_power = 6;
     }),
@@ -56,49 +54,8 @@ async fn menus_labels_with_custom_bindings() {
     async move {
       runner.wait_until_buffer_contains("Username:").await;
 
-      assert!(runner.output().await.contains("F11 Change command"));
       assert!(runner.output().await.contains("F1 Choose session"));
       assert!(runner.output().await.contains("F6 Power"));
-    }
-  });
-
-  runner.join_until_end(events).await;
-}
-
-#[tokio::test]
-async fn change_command() {
-  let opts = SessionOptions {
-    username: "apognu".to_string(),
-    password: "password".to_string(),
-    mfa:      false,
-  };
-
-  let mut runner = IntegrationRunner::new(opts, None).await;
-
-  let events = tokio::task::spawn({
-    let mut runner = runner.clone();
-
-    async move {
-      runner.wait_until_buffer_contains("Username:").await;
-      runner.send_key(KeyCode::F(3)).await;
-      runner.wait_for_render().await;
-
-      assert!(runner.output().await.contains("CMD uname"));
-
-      runner.send_key(KeyCode::F(2)).await;
-      runner.wait_for_render().await;
-
-      assert!(runner.output().await.contains("Change session command"));
-      assert!(runner.output().await.contains("New command: uname"));
-
-      runner
-        .send_modified_key(KeyCode::Char('u'), KeyModifiers::CONTROL)
-        .await;
-      runner.send_text("mynewcommand").await;
-      runner.send_key(KeyCode::Enter).await;
-      runner.wait_for_render().await;
-
-      assert!(runner.output().await.contains("CMD mynewcommand"));
     }
   });
 

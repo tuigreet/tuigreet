@@ -75,7 +75,8 @@ impl IntegrationRunner {
 
     let client = tokio::task::spawn(async move {
       let mut greeter = Greeter::new(events.sender()).await;
-      greeter.session_source = SessionSource::Command("uname".to_string());
+      greeter.session_source =
+        SessionSource::DefaultCommand("uname".to_string(), None);
 
       if let Some(builder) = builder {
         builder(&mut greeter);
