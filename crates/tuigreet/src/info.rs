@@ -26,7 +26,6 @@ use crate::{
 /// Cache file paths
 const LAST_USER_USERNAME: &str = "/var/cache/tuigreet/lastuser";
 const LAST_USER_NAME: &str = "/var/cache/tuigreet/lastuser-name";
-const LAST_COMMAND: &str = "/var/cache/tuigreet/lastsession";
 const LAST_SESSION: &str = "/var/cache/tuigreet/lastsession-path";
 
 static XDG_DATA_DIRS: OnceLock<Vec<PathBuf>> = OnceLock::new();
@@ -171,10 +170,6 @@ pub fn get_last_session_path() -> Result<PathBuf, io::Error> {
   Ok(PathBuf::from(fs::read_to_string(LAST_SESSION)?.trim()))
 }
 
-pub fn get_last_command() -> Result<String, io::Error> {
-  Ok(fs::read_to_string(LAST_COMMAND)?.trim().to_string())
-}
-
 pub fn write_last_session_path<P>(session: &P)
 where
   P: AsRef<Path>,
@@ -183,22 +178,10 @@ where
     fs::write(LAST_SESSION, session.as_ref().to_string_lossy().as_bytes());
 }
 
-pub fn write_last_command(session: &str) {
-  let _ = fs::write(LAST_COMMAND, session);
-}
-
 pub fn get_last_user_session(username: &str) -> Result<PathBuf, io::Error> {
   Ok(PathBuf::from(
     fs::read_to_string(format!("{LAST_SESSION}-{username}"))?.trim(),
   ))
-}
-
-pub fn get_last_user_command(username: &str) -> Result<String, io::Error> {
-  Ok(
-    fs::read_to_string(format!("{LAST_COMMAND}-{username}"))?
-      .trim()
-      .to_string(),
-  )
 }
 
 pub fn write_last_user_session<P>(username: &str, session: P)
@@ -209,26 +192,6 @@ where
     format!("{LAST_SESSION}-{username}"),
     session.as_ref().to_string_lossy().as_bytes(),
   );
-}
-
-pub fn delete_last_session() {
-  let _ = fs::remove_file(LAST_SESSION);
-}
-
-pub fn write_last_user_command(username: &str, session: &str) {
-  let _ = fs::write(format!("{LAST_COMMAND}-{username}"), session);
-}
-
-pub fn delete_last_user_session(username: &str) {
-  let _ = fs::remove_file(format!("{LAST_SESSION}-{username}"));
-}
-
-pub fn delete_last_command() {
-  let _ = fs::remove_file(LAST_COMMAND);
-}
-
-pub fn delete_last_user_command(username: &str) {
-  let _ = fs::remove_file(format!("{LAST_COMMAND}-{username}"));
 }
 
 #[expect(

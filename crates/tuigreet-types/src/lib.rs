@@ -47,9 +47,6 @@ pub enum Mode {
   /// User selection menu
   Users,
 
-  /// Command input field
-  Command,
-
   /// Session selection menu
   Sessions,
 

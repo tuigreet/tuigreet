@@ -80,7 +80,8 @@ impl IntegrationRunner {
     let client = spawn(async move {
       let mut greeter =
         Greeter::new(events.sender(), Config::default(), false).await;
-      greeter.session_source = SessionSource::Command("uname".to_string());
+      greeter.session_source =
+        SessionSource::DefaultCommand("uname".to_string(), None);
 
       if let Some(builder) = builder {
         builder(&mut greeter);

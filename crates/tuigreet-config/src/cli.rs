@@ -452,8 +452,6 @@ struct LayoutOverrides {
 
   #[pound(long, negate, env = "TUIGREET_STATUS_SHOW_RESET", hidden)]
   status_show_reset:          Sourced<bool>,
-  #[pound(long, negate, env = "TUIGREET_STATUS_SHOW_COMMAND", hidden)]
-  status_show_command:        Sourced<bool>,
   #[pound(long, negate, env = "TUIGREET_STATUS_SHOW_SESSION", hidden)]
   status_show_session:        Sourced<bool>,
   #[pound(long, negate, env = "TUIGREET_STATUS_SHOW_POWER", hidden)]
@@ -490,10 +488,6 @@ impl LayoutOverrides {
       (
         &mut config.layout.widgets.status_bar.show_reset,
         self.status_show_reset,
-      ),
-      (
-        &mut config.layout.widgets.status_bar.show_command,
-        self.status_show_command,
       ),
       (
         &mut config.layout.widgets.status_bar.show_session,
@@ -561,14 +555,6 @@ impl PowerOverrides {
 
 #[derive(Clone, Debug, Parse)]
 struct KeybindingOverrides {
-  /// F-key used to open the command menu
-  #[pound(
-    long = "kb-command",
-    env = "TUIGREET_KB_COMMAND",
-    min = "1",
-    max = "12"
-  )]
-  command:    Option<Sourced<u8>>,
   /// F-key used to open the sessions menu
   #[pound(
     long = "kb-sessions",
@@ -587,9 +573,6 @@ struct KeybindingOverrides {
 
 impl KeybindingOverrides {
   const fn apply_to(&self, config: &mut Config) {
-    if let Some(Sourced { value, .. }) = &self.command {
-      config.keybindings.command = *value;
-    }
     if let Some(Sourced { value, .. }) = &self.sessions {
       config.keybindings.sessions = *value;
     }
@@ -997,7 +980,7 @@ mod tests {
     for args in [
       &["--width", "0"][..],
       &["--window-padding", "11"][..],
-      &["--kb-command", "13"][..],
+      &["--kb-sessions", "13"][..],
       &["--background-fps", "0"][..],
       &["--doom-height", "10"][..],
       &["--doom-spread", "5"][..],

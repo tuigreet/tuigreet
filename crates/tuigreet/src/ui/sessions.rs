@@ -6,35 +6,24 @@ use std::{
 use super::common::menu::MenuItem;
 use crate::Greeter;
 
-// `SessionSource` models the selected session and where it comes from.
-//
-// A session can either come from a free-form command or an XDG-defined session
-// file. Each variant contains a reference to the data required to create a
-// session, either the String of the command or the index of the session in the
-// session list.
+// A session uses a command from the configuration or a desktop session file.
 #[derive(Default)]
 pub enum SessionSource {
   #[default]
   None,
   DefaultCommand(String, Option<Vec<String>>),
-  Command(String),
   Session(usize),
 }
 
 impl SessionSource {
-  // Returns a human-readable label for the selected session.
-  //
-  // For free-form commands, this is the command itself. For session files, it
-  // is the value of the `Name` attribute in that file.
+  // Get the configured command or the name from the desktop session file.
   pub fn label<'g, 'ss: 'g>(
     &'ss self,
     greeter: &'g Greeter,
   ) -> Option<&'g str> {
     match self {
       Self::None => None,
-      Self::DefaultCommand(command, _) | Self::Command(command) => {
-        Some(command)
-      },
+      Self::DefaultCommand(command, _) => Some(command),
       Self::Session(index) => {
         greeter
           .sessions
@@ -53,9 +42,7 @@ impl SessionSource {
   ) -> Option<&'g str> {
     match self {
       Self::None => None,
-      Self::DefaultCommand(command, _) | Self::Command(command) => {
-        Some(command.as_str())
-      },
+      Self::DefaultCommand(command, _) => Some(command.as_str()),
       Self::Session(index) => {
         greeter
           .sessions
@@ -68,7 +55,7 @@ impl SessionSource {
 
   pub fn env<'g, 'ss: 'g>(&'ss self) -> Option<Vec<String>> {
     match self {
-      Self::None | Self::Command(_) | Self::Session(_) => None,
+      Self::None | Self::Session(_) => None,
       Self::DefaultCommand(_, env) => env.clone(),
     }
   }

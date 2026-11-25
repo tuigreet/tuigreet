@@ -382,7 +382,6 @@ impl Config {
 
   fn validate_keybindings(&self) -> Result<(), ConfigError> {
     let keys = [
-      self.keybindings.command,
       self.keybindings.sessions,
       self.keybindings.power,
       self.keybindings.background,
@@ -391,7 +390,6 @@ impl Config {
       return Err(ConfigError::DuplicateKeybindings);
     }
     for (name, key) in [
-      ("command", self.keybindings.command),
       ("sessions", self.keybindings.sessions),
       ("power", self.keybindings.power),
       ("background", self.keybindings.background),
@@ -780,9 +778,8 @@ mod tests {
   fn test_keybindings_distinctness_in_config() -> Result<(), ConfigError> {
     let toml_content = r"
   [keybindings]
-  command = 3
   sessions = 3
-  power = 7
+  power = 3
   ";
 
     let config: Config = toml::from_str(toml_content)?;

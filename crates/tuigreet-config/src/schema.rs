@@ -525,10 +525,6 @@ pub struct StatusBarConfig {
   #[serde(default = "default_true")]
   pub show_reset: bool,
 
-  /// Show the command action.
-  #[serde(default = "default_true")]
-  pub show_command: bool,
-
   /// Show the session action.
   #[serde(default = "default_true")]
   pub show_session: bool,
@@ -558,7 +554,6 @@ impl Default for StatusBarConfig {
   fn default() -> Self {
     Self {
       show_reset:          default_true(),
-      show_command:        default_true(),
       show_session:        default_true(),
       show_power:          default_true(),
       show_background:     default_true(),
@@ -636,8 +631,6 @@ pub struct IdleConfig {
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum BindingAction {
-  /// Open the command editor.
-  Command,
   /// Open the session menu.
   Sessions,
   /// Open the power menu.
@@ -1017,10 +1010,6 @@ pub struct ActionBindingConfig {
 /// Keybindings configuration.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct KeybindingsConfig {
-  /// F-key for command menu (1-12)
-  #[serde(default = "default_kb_command")]
-  pub command: u8,
-
   /// F-key for sessions menu (1-12)
   #[serde(default = "default_kb_sessions")]
   pub sessions: u8,
@@ -1042,7 +1031,6 @@ pub struct KeybindingsConfig {
 impl Default for KeybindingsConfig {
   fn default() -> Self {
     Self {
-      command:    default_kb_command(),
       sessions:   default_kb_sessions(),
       power:      default_kb_power(),
       background: default_kb_background(),
@@ -1255,10 +1243,6 @@ const fn default_width() -> u16 {
 
 const fn default_use_setsid() -> bool {
   true
-}
-
-const fn default_kb_command() -> u8 {
-  2
 }
 
 const fn default_kb_sessions() -> u8 {

@@ -8,14 +8,7 @@ use tuigreet_types::Mode;
 
 use crate::{
   Greeter,
-  info::{
-    delete_last_command,
-    delete_last_session,
-    get_last_user_command,
-    get_last_user_session,
-    write_last_command,
-    write_last_session_path,
-  },
+  info::{get_last_user_session, write_last_session_path},
   ipc::Ipc,
   power::power,
   ui::{
@@ -63,7 +56,7 @@ pub async fn handle(
     } => {
       match greeter.mode {
         Mode::Username => greeter.username = MaskedString::default(),
-        Mode::Password | Mode::Command => greeter.buffer = String::new(),
+        Mode::Password => greeter.buffer = String::new(),
         _ => {},
       }
     },
@@ -89,12 +82,6 @@ pub async fn handle(
       code: KeyCode::Esc, ..
     } => {
       match greeter.mode {
-        Mode::Command => {
-          greeter.mode = greeter.previous_mode;
-          greeter.buffer = greeter.previous_buffer.take().unwrap_or_default();
-          greeter.cursor_offset = 0;
-        },
-
         Mode::Users | Mode::Sessions | Mode::Power | Mode::Background => {
           greeter.mode = greeter.previous_mode;
         },
@@ -227,14 +214,7 @@ pub async fn handle(
         Mode::Username
           if greeter.user_menu && !greeter.users.options.is_empty() =>
         {
-          greeter.previous_mode = match greeter.mode {
-            Mode::Users | Mode::Command | Mode::Sessions | Mode::Power => {
-              greeter.previous_mode
-            },
-            _ => greeter.mode,
-          };
-
-          greeter.buffer = greeter.previous_buffer.take().unwrap_or_default();
+          greeter.previous_mode = Mode::Username;
           greeter.mode = Mode::Users;
         },
 
@@ -249,20 +229,6 @@ pub async fn handle(
             .await;
 
           greeter.buffer = String::new();
-        },
-
-        Mode::Command => {
-          greeter.sessions.selected = 0;
-          greeter.session_source =
-            SessionSource::Command(greeter.buffer.clone());
-
-          if greeter.remember_session {
-            write_last_command(&greeter.buffer);
-            delete_last_session();
-          }
-
-          greeter.buffer = greeter.previous_buffer.take().unwrap_or_default();
-          greeter.mode = greeter.previous_mode;
         },
 
         Mode::Users => {
@@ -290,7 +256,6 @@ pub async fn handle(
               && let Some(ref path) = path
             {
               write_last_session_path(path);
-              delete_last_command();
             }
 
             greeter.session_source =
@@ -351,17 +316,6 @@ pub async fn handle(
 
 fn perform_action(greeter: &mut Greeter, action: BindingAction) {
   match action {
-    BindingAction::Command => {
-      greeter.previous_mode = base_mode(greeter);
-      greeter.previous_buffer = Some(greeter.buffer.clone());
-      greeter.buffer = greeter
-        .session_source
-        .command(greeter)
-        .map(str::to_string)
-        .unwrap_or_default();
-      greeter.cursor_offset = 0;
-      greeter.mode = Mode::Command;
-    },
     BindingAction::Sessions if !greeter.sessions.options.is_empty() => {
       greeter.previous_mode = base_mode(greeter);
       greeter.mode = Mode::Sessions;
@@ -381,11 +335,9 @@ fn perform_action(greeter: &mut Greeter, action: BindingAction) {
 
 const fn base_mode(greeter: &Greeter) -> Mode {
   match greeter.mode {
-    Mode::Users
-    | Mode::Command
-    | Mode::Sessions
-    | Mode::Power
-    | Mode::Background => greeter.previous_mode,
+    Mode::Users | Mode::Sessions | Mode::Power | Mode::Background => {
+      greeter.previous_mode
+    },
     _ => greeter.mode,
   }
 }
@@ -395,7 +347,7 @@ const fn base_mode(greeter: &Greeter) -> Mode {
 fn insert_key(greeter: &mut Greeter, c: char) -> io::Result<()> {
   let value = match greeter.mode {
     Mode::Username => &mut greeter.username.value,
-    Mode::Password | Mode::Command => &mut greeter.buffer,
+    Mode::Password => &mut greeter.buffer,
     _ => return Ok(()),
   };
   let index = cursor_index(value, greeter.cursor_offset)?;
@@ -426,7 +378,7 @@ fn cursor_index(value: &str, offset: isize) -> io::Result<usize> {
 fn delete_key(greeter: &mut Greeter, key: KeyCode) -> io::Result<()> {
   let value = match greeter.mode {
     Mode::Username => &mut greeter.username.value,
-    Mode::Password | Mode::Command => &mut greeter.buffer,
+    Mode::Password => &mut greeter.buffer,
     _ => return Ok(()),
   };
   let cursor = cursor_index(value, greeter.cursor_offset)?;
@@ -478,12 +430,6 @@ async fn validate_username(greeter: &mut Greeter, ipc: &Ipc) {
       greeter.session_source =
         SessionSource::Session(greeter.sessions.selected);
     }
-
-    if let Ok(command) = get_last_user_command(&greeter.username.value) {
-      tracing::info!("remembered user command is {}", command);
-
-      greeter.session_source = SessionSource::Command(command);
-    }
   }
 }
 
@@ -504,7 +450,7 @@ mod test {
     ui::{
       common::masked::MaskedString,
       power::Power,
-      sessions::{Session, SessionSource},
+      sessions::Session,
     },
   };
 
@@ -551,58 +497,12 @@ mod test {
       assert_eq!(status.buffer, String::new());
       drop(status);
     }
-
-    {
-      let mut greeter = greeter.write().await;
-      greeter.mode = Mode::Command;
-      greeter.buffer = "newcommand".to_string();
-    }
-
-    handle(
-      Arc::clone(&greeter),
-      KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL),
-      Ipc::new(),
-    )
-    .await?;
-
-    {
-      let status = greeter.read().await;
-
-      assert_eq!(status.buffer, String::new());
-      drop(status);
-    }
     Ok(())
   }
 
   #[tokio::test]
   async fn escape() -> Result<(), Box<dyn Error>> {
     let greeter = Arc::new(RwLock::new(Greeter::default()));
-
-    {
-      let mut greeter = greeter.write().await;
-      greeter.previous_mode = Mode::Username;
-      greeter.mode = Mode::Command;
-      greeter.previous_buffer = Some("apognu".to_string());
-      greeter.buffer = "newcommand".to_string();
-      greeter.cursor_offset = 2;
-    }
-
-    handle(
-      Arc::clone(&greeter),
-      KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()),
-      Ipc::new(),
-    )
-    .await?;
-
-    {
-      let status = greeter.read().await;
-
-      assert_eq!(status.mode, Mode::Username);
-      assert_eq!(status.buffer, "apognu".to_string());
-      assert!(status.previous_buffer.is_none());
-      assert_eq!(status.cursor_offset, 0);
-      drop(status);
-    }
 
     for mode in [Mode::Users, Mode::Sessions, Mode::Power] {
       {
@@ -669,58 +569,6 @@ mod test {
   }
 
   #[tokio::test]
-  async fn f2() -> Result<(), Box<dyn Error>> {
-    let greeter = Arc::new(RwLock::new(Greeter::default()));
-
-    {
-      let mut greeter = greeter.write().await;
-      greeter.mode = Mode::Username;
-      greeter.buffer = "apognu".to_string();
-      greeter.session_source = SessionSource::Command("thecommand".to_string());
-    }
-
-    handle(
-      Arc::clone(&greeter),
-      KeyEvent::new(KeyCode::F(2), KeyModifiers::empty()),
-      Ipc::new(),
-    )
-    .await?;
-
-    {
-      let status = greeter.read().await;
-
-      assert_eq!(status.mode, Mode::Command);
-      assert_eq!(status.previous_buffer, Some("apognu".to_string()));
-      assert_eq!(status.buffer, "thecommand".to_string());
-      drop(status);
-    }
-
-    for mode in [Mode::Users, Mode::Sessions, Mode::Power] {
-      {
-        let mut greeter = greeter.write().await;
-        greeter.previous_mode = Mode::Username;
-        greeter.mode = mode;
-      }
-
-      handle(
-        Arc::clone(&greeter),
-        KeyEvent::new(KeyCode::F(2), KeyModifiers::empty()),
-        Ipc::new(),
-      )
-      .await?;
-
-      {
-        let status = greeter.read().await;
-
-        assert_eq!(status.mode, Mode::Command);
-        assert_eq!(status.previous_mode, Mode::Username);
-        drop(status);
-      }
-    }
-    Ok(())
-  }
-
-  #[tokio::test]
   async fn f_menu() -> Result<(), Box<dyn Error>> {
     let greeter = Arc::new(RwLock::new(Greeter::default()));
 
@@ -758,29 +606,6 @@ mod test {
         assert_eq!(status.buffer, "apognu".to_string());
         drop(status);
       }
-
-      for mode in [Mode::Users, Mode::Sessions, Mode::Power] {
-        {
-          let mut greeter = greeter.write().await;
-          greeter.previous_mode = Mode::Username;
-          greeter.mode = mode;
-        }
-
-        handle(
-          Arc::clone(&greeter),
-          KeyEvent::new(KeyCode::F(2), KeyModifiers::empty()),
-          Ipc::new(),
-        )
-        .await?;
-
-        {
-          let status = greeter.read().await;
-
-          assert_eq!(status.mode, Mode::Command);
-          assert_eq!(status.previous_mode, Mode::Username);
-          drop(status);
-        }
-      }
     }
     Ok(())
   }
@@ -792,7 +617,6 @@ mod test {
     {
       let mut greeter = greeter.write().await;
       let mut config = Config::default();
-      config.keybindings.command = 3;
       config.keybindings.sessions = 1;
       config.keybindings.power = 11;
       greeter.apply_config(config);
@@ -826,29 +650,6 @@ mod test {
         assert_eq!(status.mode, mode);
         assert_eq!(status.buffer, "apognu".to_string());
         drop(status);
-      }
-
-      for mode in [Mode::Users, Mode::Sessions, Mode::Power] {
-        {
-          let mut greeter = greeter.write().await;
-          greeter.previous_mode = Mode::Username;
-          greeter.mode = mode;
-        }
-
-        handle(
-          Arc::clone(&greeter),
-          KeyEvent::new(KeyCode::F(3), KeyModifiers::empty()),
-          Ipc::new(),
-        )
-        .await?;
-
-        {
-          let status = greeter.read().await;
-
-          assert_eq!(status.mode, Mode::Command);
-          assert_eq!(status.previous_mode, Mode::Username);
-          drop(status);
-        }
       }
     }
     Ok(())
@@ -1004,7 +805,7 @@ mod test {
 
     {
       let mut greeter = greeter.write().await;
-      greeter.mode = Mode::Command;
+      greeter.mode = Mode::Password;
       greeter.buffer = "123456789".to_string();
     }
 
@@ -1042,7 +843,7 @@ mod test {
   fn editing_preserves_unicode_cursor_boundaries() -> Result<(), Box<dyn Error>>
   {
     let mut greeter = Greeter::default();
-    greeter.mode = Mode::Command;
+    greeter.mode = Mode::Password;
     greeter.buffer = "a🦀é".into();
     greeter.cursor_offset = -1;
 
@@ -1070,7 +871,7 @@ mod test {
   fn editing_supports_buffers_beyond_i16_coordinates()
   -> Result<(), Box<dyn Error>> {
     let mut greeter = Greeter::default();
-    greeter.mode = Mode::Command;
+    greeter.mode = Mode::Password;
     greeter.buffer = "a".repeat(32_768);
     greeter.cursor_offset = -32_768;
     insert_key(&mut greeter, '界')?;

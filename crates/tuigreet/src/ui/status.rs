@@ -42,7 +42,6 @@ const STATUS_RIGHT_INDEX: usize = 3;
 
 #[derive(Clone, Copy)]
 enum Button {
-  Command,
   Session,
   Power,
   Background,
@@ -393,7 +392,6 @@ fn append_action_bindings<'a>(
 ) {
   let status = greeter.status_bar();
   for (visible, action, button) in [
-    (status.show_command, BindingAction::Command, Button::Command),
     (
       status.show_session,
       BindingAction::Sessions,
@@ -427,7 +425,6 @@ fn append_action_bindings<'a>(
 
 fn action_label(action: BindingAction) -> String {
   match action {
-    BindingAction::Command => fl!("action_command"),
     BindingAction::Sessions => fl!("action_session"),
     BindingAction::Power => fl!("action_power"),
     BindingAction::Background => fl!("action_background"),
@@ -532,7 +529,6 @@ fn status_value(
   text: &str,
 ) -> Span<'static> {
   let relevant_mode = match button {
-    Button::Command => Some(Mode::Command),
     Button::Session => Some(Mode::Sessions),
     Button::Power => Some(Mode::Power),
     Button::Background => Some(Mode::Background),

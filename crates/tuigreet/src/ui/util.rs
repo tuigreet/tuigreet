@@ -29,7 +29,7 @@ pub const fn should_hide_cursor(greeter: &Greeter) -> bool {
     | Mode::Power
     | Mode::Processing
     | Mode::Action => true,
-    Mode::Command | Mode::Background => false,
+    Mode::Background => false,
   }
 }
 
@@ -50,7 +50,7 @@ pub fn get_height(greeter: &Greeter) -> u16 {
   let prompt_padding = greeter.prompt_padding();
 
   let initial = match greeter.mode {
-    Mode::Username | Mode::Action | Mode::Command => {
+    Mode::Username | Mode::Action => {
       container_padding.saturating_mul(2).saturating_add(1)
     },
     Mode::Password => {
@@ -72,11 +72,9 @@ pub fn get_height(greeter: &Greeter) -> u16 {
   };
 
   match greeter.mode {
-    Mode::Command
-    | Mode::Sessions
-    | Mode::Power
-    | Mode::Background
-    | Mode::Processing => initial,
+    Mode::Sessions | Mode::Power | Mode::Background | Mode::Processing => {
+      initial
+    },
     _ => initial.saturating_add(greeting_height),
   }
 }

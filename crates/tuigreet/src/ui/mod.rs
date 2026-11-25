@@ -2,7 +2,6 @@
 
 pub mod background;
 pub mod bg_animation;
-mod command;
 pub mod common;
 mod i18n;
 pub mod power;
@@ -107,7 +106,6 @@ fn draw_main_content(
   hide_cursor: bool,
 ) {
   let cursor = match greeter.mode {
-    Mode::Command => self::command::draw_with_area(greeter, f, area).ok(),
     Mode::Sessions => greeter.sessions.draw_with_area(greeter, f, area).ok(),
     Mode::Power => greeter.powers.draw_with_area(greeter, f, area).ok(),
     Mode::Background => {

@@ -17,13 +17,7 @@ use tuigreet_types::{AuthStatus, Mode};
 use crate::{
   Greeter,
   event::Event,
-  info::{
-    delete_last_user_command,
-    delete_last_user_session,
-    write_last_user_command,
-    write_last_user_session,
-    write_last_username,
-  },
+  info::{write_last_user_session, write_last_username},
   macros::SafeDebug,
   ui::sessions::{Session, SessionSource, SessionType},
 };
@@ -175,36 +169,15 @@ impl Ipc {
             tracing::info!("caching last successful username");
 
             write_last_username(&greeter.username);
-
-            if greeter.remember_user_session {
-              match greeter.session_source {
-                SessionSource::Command(ref command) => {
-                  tracing::info!("caching last user command: {command}");
-
-                  write_last_user_command(&greeter.username.value, command);
-                  delete_last_user_session(&greeter.username.value);
-                },
-
-                SessionSource::Session(index) => {
-                  if let Some(Session {
-                    path: Some(session_path),
-                    ..
-                  }) = greeter.sessions.options.get(index)
-                  {
-                    tracing::info!(
-                      "caching last user session: {session_path:?}"
-                    );
-
-                    write_last_user_session(
-                      &greeter.username.value,
-                      session_path,
-                    );
-                    delete_last_user_command(&greeter.username.value);
-                  }
-                },
-
-                _ => {},
-              }
+            if greeter.remember_user_session
+              && let SessionSource::Session(index) = greeter.session_source
+              && let Some(Session {
+                path: Some(session_path),
+                ..
+              }) = greeter.sessions.options.get(index)
+            {
+              tracing::info!("caching last user session: {session_path:?}");
+              write_last_user_session(&greeter.username.value, session_path);
             }
           }
 

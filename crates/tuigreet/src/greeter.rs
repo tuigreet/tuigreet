@@ -40,9 +40,7 @@ use crate::{
   event::Event,
   info::{
     get_issue,
-    get_last_command,
     get_last_session_path,
-    get_last_user_command,
     get_last_user_name,
     get_last_user_session,
     get_last_user_username,
@@ -97,11 +95,8 @@ pub struct Greeter {
   // mode.
   pub cursor_offset: isize,
 
-  // Buffer to be used as a temporary editing zone for the various modes.
-  // Previous buffer is saved when a transient screen has to use the buffer, to
-  // be able to restore it when leaving the transient screen.
-  pub previous_buffer: Option<String>,
-  pub buffer:          String,
+  // Buffer for the authentication response.
+  pub buffer: String,
 
   // Define the selected session and how to resolve it.
   pub session_source:   SessionSource,
@@ -200,7 +195,6 @@ impl Default for Greeter {
       mode:                  Mode::default(),
       previous_mode:         Mode::default(),
       cursor_offset:         0,
-      previous_buffer:       None,
       buffer:                String::new(),
       session_source:        SessionSource::default(),
       session_paths:         Vec::new(),
@@ -346,9 +340,6 @@ impl Greeter {
       return;
     }
 
-    if let Ok(command) = get_last_user_command(self.username.get()) {
-      self.session_source = SessionSource::Command(command);
-    }
     if let Ok(session_path) = get_last_user_session(self.username.get())
       && let Some(index) = self
         .sessions
@@ -364,9 +355,6 @@ impl Greeter {
   fn restore_remembered_session(&mut self) {
     if !self.remember_session {
       return;
-    }
-    if let Ok(command) = get_last_command() {
-      self.session_source = SessionSource::Command(command.trim().to_string());
     }
     if let Ok(session_path) = get_last_session_path()
       && let Some(index) = self

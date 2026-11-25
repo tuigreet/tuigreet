@@ -38,15 +38,12 @@ the `*-padding` options.
 
 You can instruct `tuigreet` to remember the last username that successfully
 opened a session with the `--remember` option (that way, the username field will
-be pre-filled). Similarly, the command and session configuration can be retained
-between runs with the `--remember-session` option (when using this, the `--cmd`
-value is overridden by manual selections). You can also remember the selected
-session per user with the `--remember-user-session` flag. In this case, the
-selected session will only be saved on successful authentication.
+be pre-filled). Use `--remember-session` to retain the selected desktop session
+between runs; that selection overrides `--cmd`. To remember desktop sessions
+per user, use `--remember-user-session`. Per-user selections are saved only
+after successful authentication.
 
-You may change the command that will be executed after opening a session by
-hitting `F2` and amending the command. Alternatively, you can list the
-system-declared sessions (or custom ones) by hitting `F3`. Power options are
+Press `F3` to choose from the configured desktop sessions. Power options are
 available through `F12`.
 
 ### Background animations
@@ -79,8 +76,7 @@ You can also switch animations on the fly without restarting the greeter by
 hitting `F4`. This opens a small menu listing every available animation plus a
 `None` entry to disable the backdrop; selection rebuilds the active animation
 with that kind's default options. The hotkey is configurable through
-`--kb-background` or the `background` field of the `[keybindings]` section, the
-same way the existing F2/F3/F12 menus are configured.
+`--kb-background` or the `background` field of the `[keybindings]` section.
 
 ## Installing Tuigreet
 
@@ -276,7 +272,6 @@ characters = "*"
 # deprecated. Migrate it to `secret.mode`; `secret.mode` wins if both are set.
 
 [keybindings]
-command = 2     # F2
 sessions = 3    # F3
 background = 4  # F4
 power = 12      # F12
@@ -378,7 +373,6 @@ export TUIGREET_DEFAULT_SESSION="uwsm"
 export TUIGREET_POWER_USE_SETSID=false
 
 # Keybindings (F-key numbers)
-export TUIGREET_KB_COMMAND=2   # F2
 export TUIGREET_KB_SESSIONS=3  # F3
 export TUIGREET_KB_POWER=12    # F12
 

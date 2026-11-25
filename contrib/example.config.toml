@@ -105,8 +105,6 @@ status_position = "default"
 [layout.widgets.status_bar]
 # Show the ESC/Reset button
 show_reset          = true
-# Show the command button (F2)
-show_command        = true
 # Show the session button (F3)
 show_session        = true
 # Show the power button (F12)
@@ -135,9 +133,6 @@ show_caps_lock      = true
 use_setsid = true
 
 [keybindings]
-# F-key for command menu (1-12)
-command = 2
-
 # F-key for sessions menu (1-12)
 sessions = 3
 

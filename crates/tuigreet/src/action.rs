@@ -87,7 +87,7 @@ impl KeyBinding {
 /// action and the occupant of the same chord.
 #[must_use]
 pub fn bindings_from_config(config: &KeybindingsConfig) -> Vec<KeyBinding> {
-  let mut bindings = Vec::with_capacity(5 + config.actions.len());
+  let mut bindings = Vec::with_capacity(4 + config.actions.len());
   insert_override(
     &mut bindings,
     KeyBinding::new(
@@ -97,7 +97,6 @@ pub fn bindings_from_config(config: &KeybindingsConfig) -> Vec<KeyBinding> {
   );
 
   for (number, action) in [
-    (config.command, BindingAction::Command),
     (config.sessions, BindingAction::Sessions),
     (config.power, BindingAction::Power),
     (config.background, BindingAction::Background),
@@ -175,7 +174,7 @@ mod tests {
   {
     let mut config = KeybindingsConfig::default();
     config.actions.push(ActionBindingConfig {
-      key:    chord("F2")?,
+      key:    chord("F3")?,
       action: BindingAction::TogglePassword,
     });
 
@@ -183,11 +182,11 @@ mod tests {
     assert!(
       !bindings
         .iter()
-        .any(|binding| binding.action() == BindingAction::Command)
+        .any(|binding| binding.action() == BindingAction::Sessions)
     );
     assert!(bindings.iter().any(|binding| {
       binding.action() == BindingAction::TogglePassword
-        && binding.matches(KeyEvent::new(KeyCode::F(2), KeyModifiers::NONE))
+        && binding.matches(KeyEvent::new(KeyCode::F(3), KeyModifiers::NONE))
     }));
     Ok(())
   }
@@ -195,13 +194,13 @@ mod tests {
   #[test]
   fn legacy_function_key_wins_default_password_collision() {
     let config = KeybindingsConfig {
-      command: 7,
+      sessions: 7,
       ..KeybindingsConfig::default()
     };
 
     let bindings = bindings_from_config(&config);
     assert!(bindings.iter().any(|binding| {
-      binding.action() == BindingAction::Command
+      binding.action() == BindingAction::Sessions
         && binding.matches(KeyEvent::new(KeyCode::F(7), KeyModifiers::NONE))
     }));
     assert!(
