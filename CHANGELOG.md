@@ -40,6 +40,8 @@
 - Available sessions are discovered from `$XDG_DATA_DIRS` again. The default
   configuration values for `sessions_dirs`/`xsessions_dirs` were causing the
   discovery to be silently skipped.
+- A successful power command no longer stalls for two seconds and exits with a
+  failure status, leaving the screen uncleared and the terminal in raw mode.
 
 ## 0.11.1
 
