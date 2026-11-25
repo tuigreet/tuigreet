@@ -8,6 +8,7 @@ use tuigreet_types::Mode;
 
 use crate::{
   Greeter,
+  event::Event,
   info::{
     delete_last_command,
     delete_last_session,
@@ -88,6 +89,8 @@ pub async fn handle(
     KeyEvent {
       code: KeyCode::Esc, ..
     } => {
+      greeter.needs_clear = true;
+
       match greeter.mode {
         Mode::Command => {
           greeter.mode = greeter.previous_mode;
@@ -103,6 +106,10 @@ pub async fn handle(
           Ipc::cancel(&greeter).await;
           greeter.reset(false).await;
         },
+      }
+
+      if let Some(ref sender) = greeter.events {
+        let _ = sender.send(Event::Render).await;
       }
     },
 

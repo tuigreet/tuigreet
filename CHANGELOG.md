@@ -40,6 +40,8 @@
 - Available sessions are discovered from `$XDG_DATA_DIRS` again. The default
   configuration values for `sessions_dirs`/`xsessions_dirs` were causing the
   discovery to be silently skipped.
+- Pressing ESC now forces a full screen redraw, clearing stray TTY output
+  (such as systemd boot logs) that overwrote the login form.
 
 ## 0.11.1
 
