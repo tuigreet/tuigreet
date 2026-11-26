@@ -31,12 +31,12 @@ i18n-embed         = { version = "0.16.0", features = [
   "fluent-system",
 ] }
 i18n-embed-fl      = "0.10.1"
-jiff               = { version = "0.2.40", default-features = false, features = [
+jiff               = { version = "1.0.1", default-features = false, features = [
   "std",
   "tz-system",
   "tzdb-zoneinfo",
 ] }
-nix                = { version = "0.31.3", features = [ "feature", "ioctl" ] }
+nix                = { version = "0.32.0", features = [ "feature", "ioctl" ] }
 notify             = { version = "8.2.1", features = [ "macos_fsevent" ] }
 pound              = "0.6.1"
 pure-rust-locales  = "0.8.2"
